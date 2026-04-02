@@ -1,0 +1,1 @@
+Get-ChildItem .\backup\*.metadata | ForEach-Object { $d = Get-Content $_ -Raw | ConvertFrom-Json; if ($d.visibleName -like "*management transition*") { Write-Host "$($d.visibleName) -> $($_.Name)" } }

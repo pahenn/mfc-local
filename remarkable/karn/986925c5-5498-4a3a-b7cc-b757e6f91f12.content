@@ -1,0 +1,95 @@
+{
+    "cPages": {
+        "lastOpened": {
+            "timestamp": "1:1",
+            "value": "952ebe85-ea36-4818-badd-c8a4795d781b"
+        },
+        "original": {
+            "timestamp": "0:0",
+            "value": -1
+        },
+        "pages": [
+            {
+                "id": "952ebe85-ea36-4818-badd-c8a4795d781b",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "ba"
+                },
+                "scrollTime": {
+                    "timestamp": "1:2",
+                    "value": "2026-03-17T16:59:05Z"
+                },
+                "template": {
+                    "timestamp": "1:1",
+                    "value": "P US College"
+                },
+                "verticalScroll": {
+                    "timestamp": "1:2",
+                    "value": 3370
+                }
+            }
+        ],
+        "uuids": [
+            {
+                "first": "ad4c5c67-59b8-539f-a3c0-1c4bf7e6c369",
+                "second": 1
+            }
+        ]
+    },
+    "coverPageNumber": -1,
+    "customZoomCenterX": 0,
+    "customZoomCenterY": 936,
+    "customZoomOrientation": "portrait",
+    "customZoomPageHeight": 1872,
+    "customZoomPageWidth": 1404,
+    "customZoomScale": 1,
+    "documentMetadata": {
+    },
+    "extraMetadata": {
+        "LastActiveTool": "primary",
+        "LastBallpointColor": "Black",
+        "LastBallpointSize": "2",
+        "LastBallpointv2Color": "Black",
+        "LastBallpointv2Size": "2",
+        "LastEraserColor": "Black",
+        "LastEraserSize": "2",
+        "LastEraserTool": "Eraser",
+        "LastFinelinerv2Color": "Black",
+        "LastFinelinerv2Size": "2",
+        "LastHighlighterv2Color": "ArgbCode",
+        "LastHighlighterv2ColorCode": "4294951820",
+        "LastHighlighterv2Size": "1",
+        "LastMarkerv2Color": "Black",
+        "LastMarkerv2Size": "3",
+        "LastPaintbrushv2Color": "Black",
+        "LastPaintbrushv2Size": "2",
+        "LastPen": "Ballpointv2",
+        "LastPencilColor": "Black",
+        "LastPencilSize": "2",
+        "LastPencilv2Color": "Black",
+        "LastPencilv2Size": "2",
+        "LastSelectionToolColor": "Black",
+        "LastSelectionToolSize": "2",
+        "LastShadingMarkerColor": "ArgbCode",
+        "LastShadingMarkerColorCode": "1075912220",
+        "LastShadingMarkerSize": "3",
+        "SecondaryHighlighterv2Color": "HighlighterYellow",
+        "SecondaryHighlighterv2Size": "1",
+        "SecondaryPen": "Highlighterv2"
+    },
+    "fileType": "notebook",
+    "fontName": "",
+    "formatVersion": 2,
+    "lineHeight": -1,
+    "margins": 125,
+    "orientation": "portrait",
+    "pageCount": 1,
+    "pageTags": [
+    ],
+    "sizeInBytes": "330801",
+    "tags": [
+    ],
+    "textAlignment": "justify",
+    "textScale": 1,
+    "zoomMode": "bestFit"
+}
