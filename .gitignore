@@ -16,3 +16,6 @@ wheels/
 **/.env
 
 **/*.csv
+
+# credentials
+**/.htpasswd

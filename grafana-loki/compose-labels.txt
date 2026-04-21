@@ -1,0 +1,3 @@
+    labels:
+      - "traefik.http.middlewares.myauth.basicauth.users=user1:$apr1$6gUdJ3s5$uYFSmjixxfjLimMZ.rFJj1"
+      - "traefik.http.routers.your-service.middlewares=myauth"
