@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Driven Brands Analytics</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --panel-2: #f0f2f5;
+      --border: #e2e5ea;
+      --text: #1a1d23;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --accent-2: #1d4ed8;
+      --ok: #059669;
+      --warn: #b45309;
+      --err: #b91c1c;
+      --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+    a { color: var(--accent); }
+
+    header.app {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel);
+      position: sticky; top: 0; z-index: 10;
+    }
+    header.app h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+    header.app .muted { color: var(--muted); font-size: 12px; margin-left: 10px; }
+
+    nav.tabs { display: flex; gap: 2px; }
+    nav.tabs button {
+      background: transparent; color: var(--muted); border: 1px solid transparent;
+      padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    nav.tabs button:hover { color: var(--text); }
+    nav.tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
+
+    main { padding: 20px; margin: 0 auto; }
+
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 18px; margin-bottom: 16px;
+    }
+    .card h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+    .card .q { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+    .card .missing { color: var(--warn); font-size: 12px; padding: 10px; background: rgba(247, 185, 85, 0.08); border: 1px dashed var(--warn); border-radius: 6px; }
+    .card .err { color: var(--err); font-size: 12px; padding: 10px; background: rgba(239, 106, 106, 0.08); border: 1px solid var(--err); border-radius: 6px; font-family: var(--mono); white-space: pre-wrap; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    @media (max-width: 1000px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+    .bignum { font-size: 28px; font-weight: 600; letter-spacing: -0.3px; }
+    .bignum .suffix { font-size: 13px; color: var(--muted); margin-left: 6px; font-weight: 400; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    button.primary {
+      background: var(--accent-2); color: white; border: 0; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+    }
+    button.primary:hover { background: #2563eb; }
+    button.ghost {
+      background: transparent; color: var(--text); border: 1px solid var(--border); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    button.ghost:hover { background: var(--panel-2); }
+
+    select, input[type="text"], input[type="date"] {
+      background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+      padding: 7px 10px; border-radius: 6px; font-size: 13px; font-family: inherit;
+    }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+
+    textarea.sql {
+      width: 100%; min-height: 180px; background: #f3f4f6; color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: var(--mono); font-size: 13px;
+      resize: vertical;
+    }
+
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: 10px; padding: 40px 20px; text-align: center;
+      background: var(--panel); transition: background 0.15s, border-color 0.15s;
+    }
+    .dropzone.drag { background: var(--panel-2); border-color: var(--accent); }
+    .dropzone .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+    .pill.ok { background: rgba(60, 207, 145, 0.15); color: var(--ok); }
+    .pill.warn { background: rgba(247, 185, 85, 0.15); color: var(--warn); }
+    .pill.err { background: rgba(239, 106, 106, 0.15); color: var(--err); }
+
+    tr.totals td { background: #eef2ff; border-bottom: 2px solid var(--border); font-weight: 600; color: var(--text); }
+    tr.totals td.mono { font-family: var(--mono); font-size: 11px; color: var(--muted); font-weight: 500; }
+
+    .treemap {
+      position: relative; width: 100%; height: 480px; background: var(--panel);
+      border-radius: 8px; overflow: hidden;
+    }
+    .treemap-cell {
+      position: absolute; box-sizing: border-box; border: 2px solid #ffffff;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      color: white; text-align: center; overflow: hidden; font-weight: 600;
+      padding: 6px; transition: filter 0.15s;
+    }
+    .treemap-cell:hover { filter: brightness(1.1); cursor: default; }
+    .treemap-cell .tm-label { font-size: 14px; line-height: 1.2; margin-bottom: 2px; }
+    .treemap-cell .tm-value { font-size: 12px; opacity: 0.9; font-weight: 500; }
+    .treemap-cell .tm-pct   { font-size: 11px; opacity: 0.8; font-weight: 400; }
+    .treemap-cell.tiny .tm-value, .treemap-cell.tiny .tm-pct { display: none; }
+    .treemap-cell.tiny .tm-label { font-size: 11px; }
+
+    .chart-wrap { margin-top: 4px; }
+    .chart-wrap svg { max-width: 100%; height: auto; }
+    figure { margin: 0; }
+
+    .flex { display: flex; gap: 10px; align-items: center; }
+    .flex.wrap { flex-wrap: wrap; }
+    .spacer { flex: 1; }
+    .mono { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+    details.sql-peek { margin-top: 10px; }
+    details.sql-peek summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+    details.sql-peek pre { background: #f3f4f6; border: 1px solid var(--border); padding: 10px; border-radius: 6px; font-size: 12px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+  <script>
+  (async () => {
+    const [duckdb, Plot] = await Promise.all([
+      import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm'),
+      import('https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6.17/+esm'),
+    ]);
+    const { createApp, ref, reactive, computed, onMounted, watch, shallowRef } = Vue;
+
+    // ─────────────────────────────────────────────────────────────
+    // DuckDB init — Blob-worker pattern works from file:// origin
+    // ─────────────────────────────────────────────────────────────
+    async function initDuckDB() {
+      const bundles = duckdb.getJsDelivrBundles();
+      const bundle = await duckdb.selectBundle(bundles);
+      const workerCode = `importScripts("${bundle.mainWorker}");`;
+      const workerUrl = URL.createObjectURL(new Blob([workerCode], { type: 'text/javascript' }));
+      const worker = new Worker(workerUrl);
+      const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
+      const db = new duckdb.AsyncDuckDB(logger, worker);
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      URL.revokeObjectURL(workerUrl);
+      return db;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // CSV identification — map file name → canonical table name
+    // ─────────────────────────────────────────────────────────────
+    function classifyCsv(filename) {
+      const n = filename.toLowerCase();
+      // Order matters — check specific patterns before generic ones
+      if (/corporation|corp_?type/.test(n))                 return 'corporation_types';
+      if (/customer[_-]?site/.test(n))                      return null; // legacy file, superseded by sites.csv — ignore
+      if (/customer/.test(n))                               return 'customers';
+      if (/site|location/.test(n))                          return 'sites';
+      if (/fleet/.test(n))                                  return 'fleets';
+      if (/invoice_?item|item_?bridge|line_?item/.test(n))  return 'invoice_item_bridge';
+      if (/invoice/.test(n))                                return 'invoices';
+      if (/driven|expected/.test(n))                        return 'driven_brands_expected';
+      return null;
+    }
+
+    const REQUIRED_TABLES = ['corporation_types', 'customers', 'sites', 'fleets', 'invoices', 'invoice_item_bridge'];
+    const OPTIONAL_TABLES = ['driven_brands_expected'];
+
+    // ─────────────────────────────────────────────────────────────
+    // View-creation SQL — mirrors queries/duckdb/10_*.sql and 20_*.sql.
+    // Runs once all required tables are present.
+    // ─────────────────────────────────────────────────────────────
+    const CREATE_VIEWS_SQL = [
+      `DROP VIEW IF EXISTS v_invoice_enriched`,
+      `DROP TABLE IF EXISTS v_invoice_enriched`,
+      `DROP VIEW IF EXISTS v_line_enriched`,
+      `DROP TABLE IF EXISTS v_line_enriched`,
+      `CREATE TABLE v_invoice_enriched AS
+       SELECT
+         i.invoiceID, i.invoiceNumber, i.invoiceDate,
+         date_trunc('month', CAST(i.invoiceDate AS DATE)) AS period,
+         f.fleetID, f.fleetCode, f.fleetCompanyName AS fleetName,
+         s.siteID,
+         s.storeNumber AS rawStoreNumber,
+         CASE
+           WHEN s.storeNumber LIKE '%828' AND length(s.storeNumber) > 6
+             THEN TRY_CAST(substring(s.storeNumber, 4, length(s.storeNumber) - 6) AS INTEGER)
+           WHEN length(s.storeNumber) > 3
+             THEN TRY_CAST(substring(s.storeNumber, 4, length(s.storeNumber) - 3) AS INTEGER)
+           ELSE NULL
+         END AS t5StoreNumber,
+         s.siteName,
+         s.region,
+         s.district,
+         s.division,
+         c.customerID, c.customerCompanyName AS customerName, c.corpType,
+         TRY_CAST(i.invoiceTotalAmount AS DOUBLE)        AS invoiceTotalAmount,
+         TRY_CAST(i.prepaidTotalAmount AS DOUBLE)        AS prepaidTotalAmount,
+         (COALESCE(TRY_CAST(i.invoiceTotalAmount AS DOUBLE), 0.0)
+          - COALESCE(TRY_CAST(i.prepaidTotalAmount AS DOUBLE), 0.0)) AS mfcBalance,
+         TRY_CAST(i.invoiceTaxTotalAmount AS DOUBLE)     AS invoiceTaxTotalAmount,
+         TRY_CAST(i.invoiceTotalDiscounts AS DOUBLE)     AS invoiceTotalDiscounts,
+         TRY_CAST(i.invoiceCCFees AS DOUBLE)             AS invoiceCCFees,
+         COALESCE(TRY_CAST(i.invoiceInvoiceFee AS DOUBLE), 0.0) AS totalMfcFee,
+         (COALESCE(TRY_CAST(c.aiInvoiceFlatFee AS DOUBLE), 0.0)
+          + COALESCE(TRY_CAST(i.invoiceTotalAmount AS DOUBLE), 0.0)
+            * COALESCE(TRY_CAST(c.aiInvoicePctFee AS DOUBLE),
+                       TRY_CAST(ct.aiFeePct AS DOUBLE), 0.0)) AS totalAiFee,
+         i.invoiceFactored, i.pending
+       FROM invoices i
+         LEFT JOIN fleets f            ON f.fleetID          = i.fleetID
+         LEFT JOIN sites s             ON s.siteID           = i.siteID
+         LEFT JOIN customers c         ON c.customerID       = i.customerID
+         LEFT JOIN corporation_types ct ON ct.corporationType = c.corpType`,
+
+      `CREATE OR REPLACE VIEW v_fleet_store_month AS
+       SELECT period, fleetCode, fleetName, t5StoreNumber, siteName,
+              COUNT(DISTINCT invoiceID)  AS invoiceCount,
+              SUM(invoiceTotalAmount)    AS totalInvoice,
+              SUM(mfcBalance)            AS mfcTotalBalance,
+              SUM(invoiceTaxTotalAmount) AS totalTax,
+              SUM(invoiceTotalDiscounts) AS totalDiscount,
+              SUM(invoiceCCFees)         AS totalCcFee,
+              SUM(totalMfcFee)           AS totalMfcFee,
+              SUM(totalAiFee)            AS totalAiFee,
+              MIN(invoiceDate)           AS firstInvoiceDate,
+              MAX(invoiceDate)           AS lastInvoiceDate
+       FROM v_invoice_enriched
+       GROUP BY 1,2,3,4,5`,
+
+      `CREATE TABLE v_line_enriched AS
+       SELECT iib.invoiceItemBridgeID, iib.invoiceID, iib.serviceCatgCode,
+              iib.itemDescription,
+              TRY_CAST(iib.serviceActualQuantity AS DOUBLE) AS serviceActualQuantity,
+              TRY_CAST(iib.serviceAmount AS DOUBLE)         AS serviceAmount,
+              TRY_CAST(iib.serviceActualAmount AS DOUBLE)   AS serviceActualAmount,
+              ie.period, ie.fleetCode, ie.fleetName, ie.t5StoreNumber, ie.siteName,
+              ie.region, ie.district, ie.division
+       FROM invoice_item_bridge iib
+         INNER JOIN v_invoice_enriched ie ON ie.invoiceID = iib.invoiceID`,
+
+      `CREATE OR REPLACE VIEW v_store_totals AS
+       SELECT t5StoreNumber,
+              MAX(NULLIF(TRIM(siteName), ''))  AS siteName,
+              MAX(region)                       AS region,
+              MAX(district)                     AS district,
+              COUNT(DISTINCT fleetCode)         AS fleetCount,
+              COUNT(DISTINCT invoiceID)         AS invoiceCount,
+              SUM(invoiceTotalAmount)           AS totalInvoice,
+              SUM(mfcBalance)                   AS mfcTotalBalance,
+              SUM(invoiceTaxTotalAmount)        AS totalTax,
+              SUM(invoiceTotalDiscounts)        AS totalDiscount,
+              SUM(invoiceCCFees)                AS totalCcFee,
+              SUM(totalMfcFee)                  AS totalMfcFee,
+              SUM(totalAiFee)                   AS totalAiFee
+       FROM v_invoice_enriched
+       WHERE t5StoreNumber IS NOT NULL
+       GROUP BY t5StoreNumber`,
+
+      `CREATE OR REPLACE VIEW v_fleet_totals AS
+       SELECT fleetCode,
+              MAX(fleetName)                    AS fleetName,
+              COUNT(DISTINCT t5StoreNumber)     AS storeCount,
+              COUNT(DISTINCT invoiceID)         AS invoiceCount,
+              SUM(invoiceTotalAmount)           AS totalInvoice,
+              SUM(mfcBalance)                   AS mfcTotalBalance,
+              SUM(invoiceTaxTotalAmount)        AS totalTax,
+              SUM(invoiceTotalDiscounts)        AS totalDiscount,
+              SUM(invoiceCCFees)                AS totalCcFee,
+              SUM(totalMfcFee)                  AS totalMfcFee,
+              SUM(totalAiFee)                   AS totalAiFee
+       FROM v_invoice_enriched
+       WHERE fleetCode IS NOT NULL
+       GROUP BY fleetCode`,
+
+      `CREATE OR REPLACE VIEW v_service_type_rollup AS
+       SELECT period, fleetCode, t5StoreNumber,
+         CASE
+           WHEN lower(coalesce(itemDescription,'')) LIKE '%oil change%'   THEN 'Oil change'
+           WHEN lower(coalesce(itemDescription,'')) LIKE '%tire%'
+             OR lower(coalesce(itemDescription,'')) LIKE '%rotation%'   THEN 'Tire service'
+           WHEN lower(coalesce(itemDescription,'')) LIKE '%engine filter%'
+             OR lower(coalesce(itemDescription,'')) LIKE '%oil filter%' THEN 'Engine filters'
+           WHEN lower(coalesce(itemDescription,'')) LIKE '%cabin%'        THEN 'Cabin air filters'
+           WHEN lower(coalesce(itemDescription,'')) LIKE '%wiper%'        THEN 'Wipers'
+           WHEN lower(coalesce(itemDescription,'')) LIKE '%brake%'        THEN 'Brake service'
+           WHEN lower(coalesce(itemDescription,'')) LIKE '%battery%'      THEN 'Battery'
+           WHEN lower(coalesce(itemDescription,'')) LIKE '%labor%'        THEN 'Labor'
+           ELSE 'Other'
+         END AS serviceType,
+         SUM(COALESCE(serviceAmount, serviceActualAmount, 0)) AS revenue,
+         COUNT(*)                 AS lines
+       FROM v_line_enriched
+       GROUP BY 1,2,3,4`,
+
+      `CREATE TABLE IF NOT EXISTS driven_brands_expected (
+         period          DATE,
+         t5StoreNumber   INTEGER,
+         fleetCode       VARCHAR,
+         expectedRevenue DECIMAL(19,4)
+       )`,
+
+      `CREATE OR REPLACE VIEW v_variance_fleet_store_month AS
+       SELECT COALESCE(m.period, d.period)                AS period,
+              COALESCE(m.fleetCode, d.fleetCode)          AS fleetCode,
+              COALESCE(m.fleetName, '<unknown>')          AS fleetName,
+              COALESCE(m.t5StoreNumber, d.t5StoreNumber)  AS t5StoreNumber,
+              COALESCE(m.siteName, '<unknown>')           AS siteName,
+              m.totalInvoice     AS mfcTotalInvoice,
+              m.mfcTotalBalance  AS mfcTotalBalance,
+              d.expectedRevenue  AS drivenBrandsExpected,
+              COALESCE(m.mfcTotalBalance,0) - COALESCE(d.expectedRevenue,0) AS variance,
+              CASE WHEN d.expectedRevenue > 0
+                   THEN (COALESCE(m.mfcTotalBalance,0) - d.expectedRevenue)/d.expectedRevenue
+                   ELSE NULL END AS variancePct,
+              CASE
+                WHEN m.mfcTotalBalance IS NULL THEN 'missing_from_mfc'
+                WHEN d.expectedRevenue IS NULL THEN 'missing_from_driven'
+                WHEN abs(m.mfcTotalBalance - d.expectedRevenue) < 1.00 THEN 'matched'
+                ELSE 'variance'
+              END AS reconStatus,
+              m.invoiceCount AS mfcInvoiceCount
+       FROM v_fleet_store_month m
+       FULL OUTER JOIN driven_brands_expected d
+         ON d.period = m.period AND d.fleetCode = m.fleetCode AND d.t5StoreNumber = m.t5StoreNumber`,
+    ];
+
+    async function createViews(db) {
+      for (const sql of CREATE_VIEWS_SQL) {
+        await runQuery(db, sql);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Query helper — run SQL, return array of plain objects
+    // ─────────────────────────────────────────────────────────────
+    async function runQuery(db, sql) {
+      const conn = await db.connect();
+      try {
+        const result = await conn.query(sql);
+        const fields = result.schema.fields;
+        return result.toArray().map(r => {
+          const o = {};
+          for (const f of fields) {
+            let v = r[f.name];
+            if (typeof v === 'bigint') v = Number(v);
+            const typeId = f.type?.typeId;
+            if (v != null && !(v instanceof Date) && (typeId === 8 || typeId === 10)) {
+              v = new Date(Number(v));
+            }
+            o[f.name] = v;
+          }
+          return o;
+        });
+      } finally {
+        await conn.close();
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Formatters
+    // ─────────────────────────────────────────────────────────────
+    const money = (n) => (n == null || Number.isNaN(+n)) ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(+n);
+    const num = (n) => (n == null || Number.isNaN(+n)) ? '—' : new Intl.NumberFormat('en-US').format(+n);
+    const ymd = (d) => { if (!d) return '—'; const dt = new Date(d); return dt.toISOString().slice(0,10); };
+    const monthLabel = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+    const asDate = (v) => v instanceof Date ? v : new Date(Number(v));
+
+    // ─────────────────────────────────────────────────────────────
+    // CSV helpers
+    // ─────────────────────────────────────────────────────────────
+    const csvEscape = (v) => {
+      if (v == null) return '';
+      const s = v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const toCsv = (rows) => {
+      if (!rows.length) return '';
+      const cols = Object.keys(rows[0]);
+      const lines = [cols.join(',')];
+      for (const r of rows) lines.push(cols.map(c => csvEscape(r[c])).join(','));
+      return lines.join('\n');
+    };
+    const downloadCsv = (filename, content) => {
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Squarified treemap — fallback if Plot.treemap isn't available
+    // ─────────────────────────────────────────────────────────────
+    function squarify(items, W, H) {
+      const total = items.reduce((s, i) => s + (i.value || 0), 0);
+      if (!total) return [];
+      const scale = (W * H) / total;
+      const scaled = items.map(i => ({ ...i, area: (i.value || 0) * scale }))
+                          .sort((a, b) => b.area - a.area);
+
+      const worstRatio = (row, side) => {
+        if (!row.length) return Infinity;
+        const sum = row.reduce((s, r) => s + r.area, 0);
+        const maxA = Math.max(...row.map(r => r.area));
+        const minA = Math.min(...row.map(r => r.area));
+        const s2 = sum * sum, side2 = side * side;
+        return Math.max((side2 * maxA) / s2, s2 / (side2 * minA));
+      };
+
+      const layoutRow = (row, rect) => {
+        const shortSide = Math.min(rect.w, rect.h);
+        const sum = row.reduce((s, r) => s + r.area, 0);
+        const length = sum / shortSide;
+        const rects = [];
+        if (rect.w <= rect.h) {
+          let cx = rect.x;
+          for (const r of row) {
+            const rw = (r.area / sum) * rect.w;
+            rects.push({ ...r, x0: cx, y0: rect.y, x1: cx + rw, y1: rect.y + length });
+            cx += rw;
+          }
+          return { rects, remaining: { x: rect.x, y: rect.y + length, w: rect.w, h: rect.h - length } };
+        } else {
+          let cy = rect.y;
+          for (const r of row) {
+            const rh = (r.area / sum) * rect.h;
+            rects.push({ ...r, x0: rect.x, y0: cy, x1: rect.x + length, y1: cy + rh });
+            cy += rh;
+          }
+          return { rects, remaining: { x: rect.x + length, y: rect.y, w: rect.w - length, h: rect.h } };
+        }
+      };
+
+      const out = [];
+      let remaining = { x: 0, y: 0, w: W, h: H };
+      let row = [];
+      for (const item of scaled) {
+        const side = Math.min(remaining.w, remaining.h);
+        const withItem = [...row, item];
+        if (!row.length || worstRatio(withItem, side) < worstRatio(row, side)) {
+          row = withItem;
+        } else {
+          const { rects, remaining: newR } = layoutRow(row, remaining);
+          out.push(...rects);
+          remaining = newR;
+          row = [item];
+        }
+      }
+      if (row.length) {
+        const { rects } = layoutRow(row, remaining);
+        out.push(...rects);
+      }
+      return out;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Reusable chart component
+    // ─────────────────────────────────────────────────────────────
+    const PlotChart = {
+      props: ['spec'],
+      setup(props) {
+        const el = ref(null);
+        let ro = null;
+        const render = () => {
+          if (!el.value || !props.spec) return;
+          const width = Math.max(320, Math.floor(el.value.clientWidth || 800));
+          const spec = { ...props.spec, width };
+          el.value.innerHTML = '';
+          try {
+            el.value.appendChild(Plot.plot(spec));
+          } catch (e) {
+            el.value.innerHTML = `<div class="err">${e.message}</div>`;
+          }
+        };
+        onMounted(() => {
+          render();
+          ro = new ResizeObserver(() => render());
+          ro.observe(el.value);
+        });
+        watch(() => props.spec, render, { deep: true });
+        return { el };
+      },
+      template: `<div ref="el" class="chart-wrap" style="width: 100%"></div>`
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Async SQL-card — renders loading / error / slot
+    // ─────────────────────────────────────────────────────────────
+    const SqlCard = {
+      props: ['title', 'question', 'sql', 'db', 'requires'],
+      emits: [],
+      setup(props, { slots }) {
+        const state = reactive({ loading: false, error: null, rows: null, missing: null });
+        const run = async () => {
+          state.loading = true;
+          state.error = null;
+          state.rows = null;
+          state.missing = null;
+          if (!props.db) { state.loading = false; return; }
+          if (props.requires) {
+            const missing = props.requires.filter(t => !props.db.__tables.has(t));
+            if (missing.length) { state.missing = missing; state.loading = false; return; }
+          }
+          try {
+            state.rows = await runQuery(props.db, props.sql);
+          } catch (e) {
+            state.error = e.message;
+          } finally {
+            state.loading = false;
+          }
+        };
+        watch(() => [props.db, props.sql], run, { immediate: true });
+        return { state, slots };
+      },
+      template: `
+        <div class="card">
+          <h2>{{ title }}</h2>
+          <div class="q">{{ question }}</div>
+          <div v-if="!db" class="missing">Load CSVs to see this.</div>
+          <div v-else-if="state.loading" class="muted mono">Running query…</div>
+          <div v-else-if="state.missing" class="missing">
+            Needs: <strong>{{ state.missing.join(', ') }}</strong>.
+            <slot name="missing-hint" :missing="state.missing" />
+          </div>
+          <div v-else-if="state.error" class="err">{{ state.error }}</div>
+          <slot v-else :rows="state.rows" />
+          <details class="sql-peek">
+            <summary>SQL</summary>
+            <pre>{{ sql.trim() }}</pre>
+          </details>
+        </div>
+      `
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // File picker / loader view
+    // ─────────────────────────────────────────────────────────────
+    const FileLoader = {
+      props: ['db'],
+      emits: ['loaded'],
+      setup(props, { emit }) {
+        const dragging = ref(false);
+        const status = reactive({ loading: false, log: [], error: null });
+        const fileInput = ref(null);
+
+        const loadFiles = async (fileList) => {
+          if (!props.db) { status.error = 'Database not ready yet'; return; }
+          status.loading = true;
+          status.error = null;
+          status.log = [];
+          const files = Array.from(fileList);
+          for (const f of files) {
+            const tableName = classifyCsv(f.name);
+            if (!tableName) {
+              status.log.push({ file: f.name, table: null, msg: 'Unrecognized — expected one of: corporation_types, customers, customer_sites, fleets, invoices, invoice_item_bridge, driven_brands_expected.' });
+              continue;
+            }
+            try {
+              const buf = new Uint8Array(await f.arrayBuffer());
+              const regName = `${tableName}.csv`;
+              try { await props.db.dropFile(regName); } catch { /* not registered yet */ }
+              await props.db.registerFileBuffer(regName, buf);
+              const conn = await props.db.connect();
+              try {
+                await conn.query(`DROP TABLE IF EXISTS ${tableName}`);
+                await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv_auto('${regName}', sample_size=-1)`);
+                const countRes = await conn.query(`SELECT COUNT(*) AS c FROM ${tableName}`);
+                const count = Number(countRes.toArray()[0].c);
+                status.log.push({ file: f.name, table: tableName, msg: `${count.toLocaleString()} rows loaded.` });
+              } finally {
+                await conn.close();
+              }
+            } catch (e) {
+              status.log.push({ file: f.name, table: tableName, msg: `Error: ${e.message}`, err: true });
+            }
+          }
+          status.loading = false;
+          emit('loaded');
+        };
+
+        const onDrop = async (e) => {
+          e.preventDefault();
+          dragging.value = false;
+          await loadFiles(e.dataTransfer.files);
+        };
+        const onPick = async (e) => {
+          await loadFiles(e.target.files);
+        };
+
+        return { dragging, status, fileInput, onDrop, onPick };
+      },
+      template: `
+        <div class="card">
+          <h2>Load data</h2>
+          <div class="q">Drop the six MFC extract CSVs (and optionally <span class="mono">driven_brands_expected.csv</span>). Filenames should match the extract contract — the loader classifies by name. Nothing leaves your machine.</div>
+          <div
+            class="dropzone"
+            :class="{ drag: dragging }"
+            @dragover.prevent="dragging = true"
+            @dragleave.prevent="dragging = false"
+            @drop="onDrop"
+            @click="fileInput.click()"
+            style="cursor: pointer"
+          >
+            <div><strong>Drop CSVs here</strong> or click to pick</div>
+            <div class="hint">Required: <span class="mono">corporation_types</span>, <span class="mono">customers</span>, <span class="mono">sites</span>, <span class="mono">fleets</span>, <span class="mono">invoices</span>, <span class="mono">invoice_item_bridge</span>. Optional: <span class="mono">driven_brands_expected</span>.</div>
+            <input ref="fileInput" type="file" accept=".csv,text/csv" multiple @change="onPick" style="display:none" />
+          </div>
+          <div v-if="status.loading" class="muted mono" style="margin-top: 12px">Loading…</div>
+          <div v-if="status.log.length" style="margin-top: 14px">
+            <table>
+              <thead><tr><th>File</th><th>Table</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr v-for="(row, i) in status.log" :key="i">
+                  <td class="mono">{{ row.file }}</td>
+                  <td>
+                    <span v-if="row.table" class="pill ok">{{ row.table }}</span>
+                    <span v-else class="pill warn">unknown</span>
+                  </td>
+                  <td :class="{ err: row.err }">{{ row.msg }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `
+    };
+
+    const sqlEscape = (s) => String(s).replace(/'/g, "''");
+
+    // ─────────────────────────────────────────────────────────────
+    // Shared facet composable
+    // ─────────────────────────────────────────────────────────────
+    const useFacets = (db) => {
+      const period = ref('all');
+      const fleetCode = ref('all');
+      const storeNumber = ref('all');
+      const region = ref('all');
+      const district = ref('all');
+      const search = ref('');
+
+      const periods = ref([]);
+      const fleets = ref([]);
+      const stores = ref([]);
+      const regions = ref([]);
+      const districts = ref([]);
+
+      const hasData = computed(() => db.value?.__tables?.has('v_invoice_enriched'));
+
+      const loadFacets = async () => {
+        if (!hasData.value) return;
+        const p = await runQuery(db.value, `SELECT DISTINCT period FROM v_invoice_enriched WHERE period IS NOT NULL ORDER BY period DESC`);
+        periods.value = p.map(x => {
+          const d = x.period instanceof Date ? x.period : new Date(x.period);
+          return { iso: d.toISOString().slice(0,10), label: monthLabel(d) };
+        });
+        const f = await runQuery(db.value, `SELECT DISTINCT fleetCode, fleetName FROM v_invoice_enriched WHERE fleetCode IS NOT NULL ORDER BY fleetName`);
+        fleets.value = f;
+        const s = await runQuery(db.value, `
+          SELECT t5StoreNumber, MAX(NULLIF(TRIM(siteName), '')) AS siteName
+          FROM v_invoice_enriched
+          WHERE t5StoreNumber IS NOT NULL
+          GROUP BY t5StoreNumber
+          ORDER BY t5StoreNumber
+        `);
+        stores.value = s;
+        const r = await runQuery(db.value, `SELECT DISTINCT region FROM v_invoice_enriched WHERE region IS NOT NULL AND region <> '' ORDER BY region`);
+        regions.value = r.map(x => x.region);
+        const d = await runQuery(db.value, `SELECT DISTINCT district FROM v_invoice_enriched WHERE district IS NOT NULL AND district <> '' ORDER BY district`);
+        districts.value = d.map(x => x.district);
+      };
+
+      watch(() => hasData.value, (v) => { if (v) loadFacets(); }, { immediate: true });
+
+      const buildWhere = (opts = {}) => {
+        const c = [];
+        if (period.value !== 'all')       c.push(`period = DATE '${sqlEscape(period.value)}'`);
+        if (!opts.skipFleet && fleetCode.value !== 'all')    c.push(`fleetCode = '${sqlEscape(fleetCode.value)}'`);
+        if (!opts.skipStore && storeNumber.value !== 'all')  c.push(`t5StoreNumber = ${Number(storeNumber.value)}`);
+        if (region.value !== 'all')       c.push(`region = '${sqlEscape(region.value)}'`);
+        if (district.value !== 'all')     c.push(`district = '${sqlEscape(district.value)}'`);
+        if (search.value) {
+          const q = sqlEscape(search.value.toLowerCase());
+          c.push(`(lower(fleetCode) LIKE '%${q}%' OR lower(fleetName) LIKE '%${q}%' OR lower(COALESCE(CAST(t5StoreNumber AS VARCHAR),'')) LIKE '%${q}%' OR lower(siteName) LIKE '%${q}%')`);
+        }
+        return c.length ? 'WHERE ' + c.join(' AND ') : '';
+      };
+
+      return { period, fleetCode, storeNumber, region, district, search, periods, fleets, stores, regions, districts, hasData, buildWhere };
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Filter bar — shared across All / Stores / Fleets
+    // ─────────────────────────────────────────────────────────────
+    const FilterBar = {
+      props: ['facets'],
+      template: `
+        <div class="card">
+          <h2>Filters</h2>
+          <div class="grid-3" style="margin-bottom: 14px">
+            <div>
+              <label>Period</label>
+              <select v-model="facets.period.value" style="width:100%">
+                <option value="all">All periods</option>
+                <option v-for="p in facets.periods.value" :key="p.iso" :value="p.iso">{{ p.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label>Fleet ({{ facets.fleets.value.length }})</label>
+              <select v-model="facets.fleetCode.value" style="width:100%">
+                <option value="all">All fleets</option>
+                <option v-for="f in facets.fleets.value" :key="f.fleetCode" :value="f.fleetCode">{{ f.fleetCode }} — {{ f.fleetName }}</option>
+              </select>
+            </div>
+            <div>
+              <label>T5 store ({{ facets.stores.value.length }})</label>
+              <select v-model="facets.storeNumber.value" style="width:100%">
+                <option value="all">All stores</option>
+                <option v-for="s in facets.stores.value" :key="s.t5StoreNumber" :value="s.t5StoreNumber">{{ s.t5StoreNumber }}{{ s.siteName ? ' — ' + s.siteName : '' }}</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label>Search</label>
+            <input type="text" v-model="facets.search.value" placeholder="text across fleet/store…" style="width:100%" />
+          </div>
+        </div>
+      `
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // All tab — invoice-level rows, expand for line items
+    // ─────────────────────────────────────────────────────────────
+    const AllInvoices = {
+      props: ['db'],
+      components: { FilterBar },
+      setup(props) {
+        const dbRef = computed(() => props.db);
+        const facets = useFacets(dbRef);
+        const rows = ref([]);
+        const totals = ref(null);
+        const total = ref(0);
+        const loading = ref(false);
+        const error = ref(null);
+        const limit = ref(500);
+        const expandedId = ref(null);
+        const detailRows = ref([]);
+        const detailLoading = ref(false);
+
+        const load = async () => {
+          if (!facets.hasData.value) return;
+          loading.value = true;
+          error.value = null;
+          const where = facets.buildWhere();
+          try {
+            const agg = await runQuery(props.db, `
+              SELECT COUNT(*) AS c,
+                     SUM(invoiceTotalAmount)    AS invoiceTotalAmount,
+                     SUM(prepaidTotalAmount)    AS prepaidTotalAmount,
+                     SUM(mfcBalance)            AS mfcBalance,
+                     SUM(invoiceTaxTotalAmount) AS invoiceTaxTotalAmount,
+                     SUM(invoiceTotalDiscounts) AS invoiceTotalDiscounts,
+                     SUM(invoiceCCFees)         AS invoiceCCFees,
+                     SUM(totalMfcFee)           AS totalMfcFee,
+                     SUM(totalAiFee)            AS totalAiFee
+              FROM v_invoice_enriched ${where}`);
+            total.value = Number(agg[0].c);
+            totals.value = agg[0];
+            rows.value = await runQuery(props.db, `
+              SELECT invoiceID, invoiceNumber, invoiceDate, period,
+                     fleetCode, fleetName, t5StoreNumber, siteName,
+                     invoiceTotalAmount, prepaidTotalAmount, mfcBalance,
+                     invoiceTaxTotalAmount, invoiceTotalDiscounts, invoiceCCFees,
+                     totalMfcFee, totalAiFee,
+                     invoiceFactored, pending
+              FROM v_invoice_enriched
+              ${where}
+              ORDER BY invoiceDate DESC
+              LIMIT ${limit.value}
+            `);
+          } catch (e) { error.value = e.message; }
+          finally { loading.value = false; }
+        };
+
+        const exporting = ref(false);
+        const downloadAll = async () => {
+          if (!facets.hasData.value) return;
+          exporting.value = true;
+          error.value = null;
+          const where = facets.buildWhere();
+          try {
+            const all = await runQuery(props.db, `
+              SELECT invoiceID, invoiceNumber, invoiceDate, period,
+                     fleetCode, fleetName, t5StoreNumber, siteName,
+                     invoiceTotalAmount, prepaidTotalAmount, mfcBalance,
+                     invoiceTaxTotalAmount, invoiceTotalDiscounts, invoiceCCFees,
+                     totalMfcFee, totalAiFee,
+                     invoiceFactored, pending
+              FROM v_invoice_enriched
+              ${where}
+              ORDER BY invoiceDate DESC
+            `);
+            downloadCsv('invoices.csv', toCsv(all));
+          } catch (e) { error.value = e.message; }
+          finally { exporting.value = false; }
+        };
+
+        const toggle = async (id) => {
+          if (expandedId.value === id) {
+            expandedId.value = null; detailRows.value = []; return;
+          }
+          expandedId.value = id;
+          detailLoading.value = true;
+          detailRows.value = [];
+          try {
+            detailRows.value = await runQuery(props.db, `
+              SELECT serviceCatgCode, itemDescription,
+                     serviceActualQuantity, serviceAmount, serviceActualAmount
+              FROM v_line_enriched
+              WHERE invoiceID = ${Number(id)}
+              ORDER BY invoiceItemBridgeID
+            `);
+          } catch (e) { error.value = e.message; }
+          finally { detailLoading.value = false; }
+        };
+
+        watch(() => facets.hasData.value, (v) => { if (v) load(); }, { immediate: true });
+        watch([() => facets.period.value, () => facets.fleetCode.value, () => facets.storeNumber.value, () => facets.region.value, () => facets.district.value, () => facets.search.value, limit], load);
+
+        return { facets, rows, totals, total, loading, error, limit, expandedId, detailRows, detailLoading, toggle, exporting, downloadAll, money, num, ymd, monthLabel, Math };
+      },
+      template: `
+        <div>
+          <div v-if="!db || !facets.hasData.value" class="card">
+            <div class="missing">Load the MFC extracts first.</div>
+          </div>
+          <template v-else>
+            <FilterBar :facets="facets" />
+
+            <div class="card">
+              <div class="flex" style="margin-bottom: 4px">
+                <h2>Invoices</h2>
+                <div class="spacer"></div>
+                <button class="ghost" @click="downloadAll" :disabled="exporting || total === 0">
+                  {{ exporting ? 'Preparing…' : 'Download CSV (' + num(total) + ' rows)' }}
+                </button>
+              </div>
+              <div class="q">Matching <strong>{{ num(total) }}</strong>. Showing first {{ Math.min(rows.length, limit) }}. <a href="#" @click.prevent="limit = limit === 500 ? 5000 : 500">{{ limit === 500 ? 'show more' : 'show less' }}</a> · click a row for line items.</div>
+              <div v-if="loading" class="muted mono">Running…</div>
+              <div v-else-if="error" class="err">{{ error }}</div>
+              <div v-else style="overflow-x:auto">
+                <table>
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th>Invoice #</th><th>Date</th><th>Period</th>
+                      <th>Fleet</th><th>T5 store</th>
+                      <th class="num">Total</th><th class="num">Prepaid</th><th class="num">MFC bal</th>
+                      <th class="num">Tax</th><th class="num">Discount</th><th class="num">CC</th>
+                      <th class="num">MFC fee</th><th class="num">AI fee</th>
+                    </tr>
+                    <tr v-if="totals" class="totals">
+                      <td></td>
+                      <td colspan="5" class="mono">TOTAL across full match ({{ num(total) }} invoices)</td>
+                      <td class="num">{{ money(totals.invoiceTotalAmount) }}</td>
+                      <td class="num">{{ money(totals.prepaidTotalAmount) }}</td>
+                      <td class="num">{{ money(totals.mfcBalance) }}</td>
+                      <td class="num">{{ money(totals.invoiceTaxTotalAmount) }}</td>
+                      <td class="num">{{ money(totals.invoiceTotalDiscounts) }}</td>
+                      <td class="num">{{ money(totals.invoiceCCFees) }}</td>
+                      <td class="num">{{ money(totals.totalMfcFee) }}</td>
+                      <td class="num">{{ money(totals.totalAiFee) }}</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template v-for="(r, i) in rows" :key="r.invoiceID">
+                      <tr @click="toggle(r.invoiceID)" :class="{ 'row-expanded': expandedId === r.invoiceID }" style="cursor: pointer">
+                        <td>{{ expandedId === r.invoiceID ? '▾' : '▸' }}</td>
+                        <td class="mono">{{ r.invoiceNumber }}</td>
+                        <td>{{ ymd(r.invoiceDate) }}</td>
+                        <td>{{ monthLabel(r.period) }}</td>
+                        <td>{{ r.fleetCode }} · {{ r.fleetName }}</td>
+                        <td class="mono">{{ r.t5StoreNumber }}</td>
+                        <td class="num">{{ money(r.invoiceTotalAmount) }}</td>
+                        <td class="num">{{ money(r.prepaidTotalAmount) }}</td>
+                        <td class="num">{{ money(r.mfcBalance) }}</td>
+                        <td class="num">{{ money(r.invoiceTaxTotalAmount) }}</td>
+                        <td class="num">{{ money(r.invoiceTotalDiscounts) }}</td>
+                        <td class="num">{{ money(r.invoiceCCFees) }}</td>
+                        <td class="num">{{ money(r.totalMfcFee) }}</td>
+                        <td class="num">{{ money(r.totalAiFee) }}</td>
+                      </tr>
+                      <tr v-if="expandedId === r.invoiceID" class="detail-row">
+                        <td colspan="14" style="background: #f9fafb; padding: 16px 24px">
+                          <div style="margin-bottom: 12px">
+                            <strong>Totals for invoice {{ r.invoiceNumber }}:</strong>
+                            <span class="mono">  invoice {{ money(r.invoiceTotalAmount) }} · prepaid {{ money(r.prepaidTotalAmount) }} · tax {{ money(r.invoiceTaxTotalAmount) }} · discount {{ money(r.invoiceTotalDiscounts) }} · CC {{ money(r.invoiceCCFees) }} · MFC fee {{ money(r.totalMfcFee) }} · AI fee {{ money(r.totalAiFee) }}</span>
+                          </div>
+                          <div v-if="detailLoading" class="muted mono">Loading lines…</div>
+                          <div v-else-if="detailRows.length === 0" class="muted mono">No lines for this invoice.</div>
+                          <table v-else>
+                            <thead><tr><th>Category</th><th>Description</th><th class="num">Qty</th><th class="num">Amount</th></tr></thead>
+                            <tbody>
+                              <tr v-for="(l, j) in detailRows" :key="j">
+                                <td class="mono">{{ l.serviceCatgCode }}</td>
+                                <td>{{ l.itemDescription }}</td>
+                                <td class="num">{{ num(l.serviceActualQuantity) }}</td>
+                                <td class="num">{{ money(l.serviceAmount) }}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+        </div>
+      `
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Product Analytics tab — product-centric view with treemap
+    // ─────────────────────────────────────────────────────────────
+    const ProductAnalytics = {
+      props: ['db'],
+      components: { FilterBar, PlotChart },
+      setup(props) {
+        const dbRef = computed(() => props.db);
+        const facets = useFacets(dbRef);
+        const serviceRows = ref([]);
+        const itemRows = ref([]);
+        const loading = ref(false);
+        const error = ref(null);
+
+        const buildLineWhere = () => {
+          const c = [];
+          if (facets.period.value !== 'all')       c.push(`period = DATE '${sqlEscape(facets.period.value)}'`);
+          if (facets.fleetCode.value !== 'all')    c.push(`fleetCode = '${sqlEscape(facets.fleetCode.value)}'`);
+          if (facets.storeNumber.value !== 'all')  c.push(`t5StoreNumber = ${Number(facets.storeNumber.value)}`);
+          if (facets.region.value !== 'all')       c.push(`region = '${sqlEscape(facets.region.value)}'`);
+          if (facets.district.value !== 'all')     c.push(`district = '${sqlEscape(facets.district.value)}'`);
+          if (facets.search.value) {
+            const q = sqlEscape(facets.search.value.toLowerCase());
+            c.push(`(lower(itemDescription) LIKE '%${q}%' OR lower(serviceCatgCode) LIKE '%${q}%' OR lower(fleetCode) LIKE '%${q}%' OR lower(siteName) LIKE '%${q}%')`);
+          }
+          return c.length ? 'WHERE ' + c.join(' AND ') : '';
+        };
+
+        const serviceTypeCase = `
+          CASE
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%oil change%'   THEN 'Oil change'
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%tire%'
+              OR lower(coalesce(itemDescription,'')) LIKE '%rotation%'    THEN 'Tire service'
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%engine filter%'
+              OR lower(coalesce(itemDescription,'')) LIKE '%air filter%'
+              OR lower(coalesce(itemDescription,'')) LIKE '%oil filter%'  THEN 'Engine/air filters'
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%cabin%'        THEN 'Cabin air filters'
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%wiper%'        THEN 'Wipers'
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%brake%'        THEN 'Brake service'
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%battery%'      THEN 'Battery'
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%fluid%'
+              OR lower(coalesce(itemDescription,'')) LIKE '%coolant%'
+              OR lower(coalesce(itemDescription,'')) LIKE '%transmission%' THEN 'Fluids'
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%labor%'        THEN 'Labor'
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%inspect%'      THEN 'Inspection'
+            WHEN lower(coalesce(itemDescription,'')) LIKE '%align%'        THEN 'Alignment'
+            ELSE 'Other'
+          END`;
+
+        const load = async () => {
+          if (!facets.hasData.value) return;
+          loading.value = true;
+          error.value = null;
+          const where = buildLineWhere();
+          try {
+            serviceRows.value = await runQuery(props.db, `
+              SELECT ${serviceTypeCase} AS serviceType,
+                     COUNT(*) AS lines,
+                     SUM(COALESCE(serviceAmount, serviceActualAmount, 0)) AS revenue
+              FROM v_line_enriched
+              ${where}
+              GROUP BY 1
+              ORDER BY revenue DESC NULLS LAST
+            `);
+            itemRows.value = await runQuery(props.db, `
+              SELECT itemDescription,
+                     COUNT(*) AS lines,
+                     SUM(serviceActualQuantity) AS qty,
+                     SUM(COALESCE(serviceAmount, serviceActualAmount, 0)) AS revenue
+              FROM v_line_enriched
+              ${where}
+              GROUP BY itemDescription
+              ORDER BY revenue DESC NULLS LAST
+              LIMIT 50
+            `);
+          } catch (e) { error.value = e.message; }
+          finally { loading.value = false; }
+        };
+
+        watch(() => facets.hasData.value, (v) => { if (v) load(); }, { immediate: true });
+        watch([() => facets.period.value, () => facets.fleetCode.value, () => facets.storeNumber.value, () => facets.region.value, () => facets.district.value, () => facets.search.value], load);
+
+        // Time series for stacked-bar-over-time chart
+        const periodRows = ref([]);
+
+        const loadPeriodMix = async () => {
+          if (!facets.hasData.value) return;
+          const where = buildLineWhere();
+          try {
+            periodRows.value = await runQuery(props.db, `
+              SELECT period,
+                     ${serviceTypeCase} AS serviceType,
+                     SUM(COALESCE(serviceAmount, serviceActualAmount, 0)) AS revenue
+              FROM v_line_enriched
+              ${where}
+              GROUP BY period, serviceType
+              ORDER BY period
+            `);
+          } catch (e) { error.value = e.message; }
+        };
+
+        watch(() => facets.hasData.value, (v) => { if (v) loadPeriodMix(); }, { immediate: true });
+        watch([() => facets.period.value, () => facets.fleetCode.value, () => facets.storeNumber.value, () => facets.search.value], loadPeriodMix);
+
+        const trendSpec = computed(() => {
+          if (!periodRows.value.length) return null;
+          const data = periodRows.value.map(r => ({ ...r, period: asDate(r.period) }));
+          return {
+            height: 380,
+            marginLeft: 70,
+            marginRight: 24,
+            x: { label: null, tickFormat: d => new Date(d).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) },
+            y: { grid: true, label: 'Revenue ($)' },
+            color: { legend: true, label: 'Service type' },
+            marks: [
+              Plot.ruleY([0]),
+              Plot.line(data, {
+                x: 'period', y: 'revenue', stroke: 'serviceType',
+                strokeWidth: 2, curve: 'monotone-x',
+              }),
+              Plot.dot(data, {
+                x: 'period', y: 'revenue', fill: 'serviceType', r: 3,
+                tip: true,
+                title: d => `${new Date(d.period).toLocaleDateString('en-US',{month:'long',year:'numeric'})}\n${d.serviceType}\n${money(d.revenue)}`,
+              }),
+            ],
+          };
+        });
+
+        // Horizontal bar chart for service types
+        const barSpec = computed(() => {
+          if (!serviceRows.value.length) return null;
+          return {
+            height: Math.max(220, serviceRows.value.length * 28),
+            marginLeft: 140,
+            x: { grid: true, label: 'Revenue ($)' },
+            y: { label: null },
+            marks: [
+              Plot.barX(serviceRows.value, {
+                x: 'revenue', y: 'serviceType', fill: '#1d4ed8',
+                sort: { y: '-x' }, tip: true,
+                title: d => `${d.serviceType}\n${money(d.revenue)} · ${d.lines} lines`,
+              }),
+              Plot.ruleX([0]),
+            ],
+          };
+        });
+
+        const totalRevenue = computed(() => serviceRows.value.reduce((s, r) => s + Number(r.revenue || 0), 0));
+        const totalLines   = computed(() => serviceRows.value.reduce((s, r) => s + Number(r.lines   || 0), 0));
+
+        const exporting = ref(false);
+        const downloadServiceTypes = () => downloadCsv('service_type_revenue.csv', toCsv(serviceRows.value));
+        const downloadTrend = () => downloadCsv('service_type_by_period.csv', toCsv(periodRows.value));
+        const downloadAllItems = async () => {
+          exporting.value = true;
+          error.value = null;
+          const where = buildLineWhere();
+          try {
+            const all = await runQuery(props.db, `
+              SELECT itemDescription,
+                     COUNT(*) AS lines,
+                     SUM(serviceActualQuantity) AS qty,
+                     SUM(COALESCE(serviceAmount, serviceActualAmount, 0)) AS revenue
+              FROM v_line_enriched
+              ${where}
+              GROUP BY itemDescription
+              ORDER BY revenue DESC NULLS LAST
+            `);
+            downloadCsv('items.csv', toCsv(all));
+          } catch (e) { error.value = e.message; }
+          finally { exporting.value = false; }
+        };
+
+        return { facets, serviceRows, itemRows, periodRows, loading, error, trendSpec, barSpec, totalRevenue, totalLines, exporting, downloadServiceTypes, downloadTrend, downloadAllItems, money, num };
+      },
+      template: `
+        <div>
+          <div v-if="!db || !facets.hasData.value" class="card">
+            <div class="missing">Load the MFC extracts first.</div>
+          </div>
+          <template v-else>
+            <FilterBar :facets="facets" />
+
+            <div class="card">
+              <h2>Total revenue</h2>
+              <div class="q">Sum across the current filter, all service types.</div>
+              <div class="grid-2">
+                <div><div class="muted" style="font-size:12px">Revenue</div><div class="bignum">{{ money(totalRevenue) }}</div></div>
+                <div><div class="muted" style="font-size:12px">Line items</div><div class="bignum">{{ num(totalLines) }}</div></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="flex" style="margin-bottom: 4px">
+                <h2>Revenue by service type, over time</h2>
+                <div class="spacer"></div>
+                <button class="ghost" @click="downloadTrend" :disabled="!periodRows.length">Download CSV</button>
+              </div>
+              <div class="q">One line per service type across months.</div>
+              <div v-if="loading" class="muted mono">Running…</div>
+              <div v-else-if="!periodRows.length" class="muted mono">No data for the current filter.</div>
+              <PlotChart v-else :spec="trendSpec" />
+            </div>
+
+            <div class="grid-2">
+              <div class="card">
+                <div class="flex" style="margin-bottom: 4px">
+                  <h2>By service type</h2>
+                  <div class="spacer"></div>
+                  <button class="ghost" @click="downloadServiceTypes" :disabled="!serviceRows.length">Download CSV</button>
+                </div>
+                <div class="q">Lines + revenue per service bucket.</div>
+                <PlotChart :spec="barSpec" />
+                <table style="margin-top: 12px">
+                  <thead><tr><th>Service type</th><th class="num">Lines</th><th class="num">Revenue</th></tr></thead>
+                  <tbody>
+                    <tr v-for="(r, i) in serviceRows" :key="i">
+                      <td>{{ r.serviceType }}</td>
+                      <td class="num">{{ num(r.lines) }}</td>
+                      <td class="num">{{ money(r.revenue) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="card">
+                <div class="flex" style="margin-bottom: 4px">
+                  <h2>Top 50 items</h2>
+                  <div class="spacer"></div>
+                  <button class="ghost" @click="downloadAllItems" :disabled="exporting">
+                    {{ exporting ? 'Preparing…' : 'Download all items' }}
+                  </button>
+                </div>
+                <div class="q">Showing 50 in the table; download includes every item matching the filter.</div>
+                <div style="max-height: 560px; overflow-y: auto">
+                  <table>
+                    <thead><tr><th>Description</th><th class="num">Lines</th><th class="num">Qty</th><th class="num">Revenue</th></tr></thead>
+                    <tbody>
+                      <tr v-for="(r, i) in itemRows" :key="i">
+                        <td>{{ r.itemDescription }}</td>
+                        <td class="num">{{ num(r.lines) }}</td>
+                        <td class="num">{{ num(r.qty) }}</td>
+                        <td class="num">{{ money(r.revenue) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      `
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Extracts tab — build and download CSVs on demand
+    // ─────────────────────────────────────────────────────────────
+    const PRESETS = {
+      invoices: {
+        label: 'Invoices (enriched with fleet / store / fees)',
+        table: 'v_invoice_enriched',
+        columnList: 'invoiceID, invoiceNumber, invoiceDate, period, fleetCode, fleetName, t5StoreNumber, siteName, invoiceTotalAmount, prepaidTotalAmount, mfcBalance, invoiceTaxTotalAmount, invoiceTotalDiscounts, invoiceCCFees, totalMfcFee, totalAiFee, invoiceFactored, pending',
+        orderBy: 'invoiceDate DESC',
+        filename: 'invoices.csv',
+        useFacets: true,
+      },
+      lines: {
+        label: 'Invoice lines (enriched with fleet / store)',
+        table: 'v_line_enriched',
+        columnList: 'invoiceID, period, fleetCode, fleetName, t5StoreNumber, siteName, serviceCatgCode, itemDescription, serviceActualQuantity, serviceAmount',
+        orderBy: 'invoiceID, serviceCatgCode',
+        filename: 'invoice_lines.csv',
+        useFacets: true,
+      },
+      rawInvoices: {
+        label: 'Raw invoice headers (all columns)',
+        table: 'invoices',
+        columnList: '*',
+        orderBy: 'invoiceDate DESC',
+        filename: 'invoices_raw.csv',
+        useFacets: false,
+      },
+      rawLines: {
+        label: 'Raw invoice lines (all columns)',
+        table: 'invoice_item_bridge',
+        columnList: '*',
+        orderBy: 'invoiceID',
+        filename: 'invoice_item_bridge_raw.csv',
+        useFacets: false,
+      },
+      fleets: {
+        label: 'Fleets (raw master table)',
+        table: 'fleets',
+        columnList: '*',
+        orderBy: 'fleetCompanyName',
+        filename: 'fleets.csv',
+        useFacets: false,
+      },
+      sites: {
+        label: 'Sites (raw master table)',
+        table: 'sites',
+        columnList: '*',
+        orderBy: 'storeNumber',
+        filename: 'sites.csv',
+        useFacets: false,
+      },
+      custom: {
+        label: 'Custom SQL',
+        custom: true,
+        filename: 'extract.csv',
+      },
+    };
+
+    const Extracts = {
+      props: ['db'],
+      components: { FilterBar },
+      setup(props) {
+        const dbRef = computed(() => props.db);
+        const facets = useFacets(dbRef);
+        const preset = ref('invoices');
+        const customSql = ref('SELECT * FROM v_invoice_enriched LIMIT 1000');
+        const previewRows = ref([]);
+        const previewCols = ref([]);
+        const totalCount = ref(0);
+        const loading = ref(false);
+        const downloading = ref(false);
+        const error = ref(null);
+
+        const currentPreset = computed(() => PRESETS[preset.value]);
+
+        const buildSql = () => {
+          const p = currentPreset.value;
+          if (p.custom) return customSql.value.trim().replace(/;\s*$/, '');
+          const where = p.useFacets ? facets.buildWhere() : '';
+          const orderBy = p.orderBy ? `ORDER BY ${p.orderBy}` : '';
+          return `SELECT ${p.columnList} FROM ${p.table} ${where} ${orderBy}`;
+        };
+
+        const runPreview = async () => {
+          if (!facets.hasData.value) return;
+          loading.value = true;
+          error.value = null;
+          previewRows.value = []; previewCols.value = []; totalCount.value = 0;
+          try {
+            const sql = buildSql();
+            if (!sql) return;
+            const cnt = await runQuery(props.db, `SELECT COUNT(*) AS c FROM (${sql}) _t`);
+            totalCount.value = Number(cnt[0].c);
+            const preview = await runQuery(props.db, `SELECT * FROM (${sql}) _t LIMIT 20`);
+            previewRows.value = preview;
+            previewCols.value = preview.length ? Object.keys(preview[0]) : [];
+          } catch (e) {
+            error.value = e.message;
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        const download = async () => {
+          if (!facets.hasData.value) return;
+          downloading.value = true;
+          error.value = null;
+          try {
+            const sql = buildSql();
+            const rows = await runQuery(props.db, sql);
+            downloadCsv(currentPreset.value.filename, toCsv(rows));
+          } catch (e) {
+            error.value = e.message;
+          } finally {
+            downloading.value = false;
+          }
+        };
+
+        watch(() => facets.hasData.value, (v) => { if (v) runPreview(); }, { immediate: true });
+        watch([preset, customSql, () => facets.period.value, () => facets.fleetCode.value, () => facets.storeNumber.value, () => facets.search.value], runPreview);
+
+        return { facets, preset, customSql, previewRows, previewCols, totalCount, loading, downloading, error, currentPreset, PRESETS, buildSql, runPreview, download, money, num, ymd };
+      },
+      template: `
+        <div>
+          <div v-if="!db || !facets.hasData.value" class="card">
+            <div class="missing">Load the MFC extracts first.</div>
+          </div>
+          <template v-else>
+            <div class="card">
+              <h2>Extract builder</h2>
+              <div class="q">Pick a dataset, optionally apply filters, preview the count, download as CSV.</div>
+
+              <div class="grid-2" style="margin-bottom: 14px">
+                <div>
+                  <label>Dataset</label>
+                  <select v-model="preset" style="width:100%">
+                    <option v-for="(p, k) in PRESETS" :key="k" :value="k">{{ p.label }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Output filename</label>
+                  <input type="text" :value="currentPreset.filename" readonly style="width:100%; opacity:0.7" />
+                </div>
+              </div>
+
+              <div v-if="currentPreset.custom" style="margin-bottom: 14px">
+                <label>SQL</label>
+                <textarea class="sql" v-model="customSql" spellcheck="false" style="min-height:120px"></textarea>
+                <div class="muted mono" style="margin-top: 6px">Runs against the loaded DuckDB. Don't include a trailing <span class="mono">;</span>.</div>
+              </div>
+            </div>
+
+            <FilterBar v-if="currentPreset.useFacets" :facets="facets" />
+            <div v-else class="card">
+              <div class="q">Filters don't apply to this dataset — it's a raw table dump.</div>
+            </div>
+
+            <div class="card">
+              <div class="flex" style="margin-bottom: 12px">
+                <button class="primary" @click="download" :disabled="downloading || loading || totalCount === 0">
+                  {{ downloading ? 'Downloading…' : 'Download CSV (' + num(totalCount) + ' rows)' }}
+                </button>
+                <button class="ghost" @click="runPreview" :disabled="loading">{{ loading ? 'Running…' : 'Refresh preview' }}</button>
+                <div class="spacer"></div>
+                <div class="muted mono">Preview: first 20 rows</div>
+              </div>
+
+              <div v-if="error" class="err">{{ error }}</div>
+              <div v-else-if="loading" class="muted mono">Running…</div>
+              <div v-else-if="previewRows.length === 0" class="muted mono">No rows.</div>
+              <div v-else style="overflow-x:auto; max-height: 500px">
+                <table>
+                  <thead><tr><th v-for="c in previewCols" :key="c">{{ c }}</th></tr></thead>
+                  <tbody>
+                    <tr v-for="(r, i) in previewRows" :key="i">
+                      <td v-for="c in previewCols" :key="c">{{ r[c] }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <details style="margin-top: 14px">
+                <summary style="cursor:pointer; color: var(--muted); font-size: 12px">SQL</summary>
+                <pre style="background: #f3f4f6; border: 1px solid var(--border); padding: 10px; border-radius: 6px; font-size: 12px; overflow-x: auto; margin-top: 8px">{{ buildSql() }}</pre>
+              </details>
+            </div>
+          </template>
+        </div>
+      `
+    };
+
+    const App = {
+      components: { FileLoader, AllInvoices, ProductAnalytics, Extracts },
+      setup() {
+        const db = shallowRef(null);
+        const tab = ref('load');
+        const tables = ref(new Set());
+        const dbReady = ref(false);
+        const viewsStatus = ref('');
+
+        onMounted(async () => {
+          try {
+            const instance = await initDuckDB();
+            instance.__tables = tables.value;
+            db.value = instance;
+            dbReady.value = true;
+          } catch (e) {
+            console.error(e);
+            alert('DuckDB failed to initialize:\n' + e.message);
+          }
+        });
+
+        const refreshTables = async () => {
+          if (!db.value) return;
+          try {
+            // First pass — see what's loaded
+            let rows = await runQuery(db.value, `SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'`);
+            let s = new Set(rows.map(r => r.table_name));
+
+            const missingRequired = REQUIRED_TABLES.filter(t => !s.has(t));
+            if (missingRequired.length === 0) {
+              // All required tables present — (re)create the reconciliation views
+              viewsStatus.value = 'creating views…';
+              try {
+                await createViews(db.value);
+                viewsStatus.value = 'views ready';
+              } catch (e) {
+                viewsStatus.value = `view error: ${e.message}`;
+                console.error(e);
+              }
+              // Refresh table list to include the views
+              rows = await runQuery(db.value, `SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'`);
+              s = new Set(rows.map(r => r.table_name));
+            } else {
+              viewsStatus.value = `waiting for: ${missingRequired.join(', ')}`;
+            }
+
+            tables.value = s;
+            db.value.__tables = s;
+            if (s.has('v_invoice_enriched') && tab.value === 'load') tab.value = 'all';
+          } catch (e) { console.error(e); }
+        };
+
+        const tabsMeta = [
+          { key: 'load',     label: 'Load data' },
+          { key: 'all',      label: 'All' },
+          { key: 'products', label: 'Product analytics' },
+          { key: 'extracts', label: 'Extracts' },
+        ];
+
+        return { db, tab, tabsMeta, tables, dbReady, viewsStatus, refreshTables };
+      },
+      template: `
+        <header class="app">
+          <div class="flex">
+            <h1>Driven Brands Analytics</h1>
+            <span class="muted">DuckDB-WASM · local-only · no upload</span>
+            <span v-if="viewsStatus" class="muted mono" style="margin-left: 12px">· {{ viewsStatus }}</span>
+          </div>
+          <nav class="tabs">
+            <button v-for="t in tabsMeta" :key="t.key" :class="{ active: tab === t.key }" @click="tab = t.key">{{ t.label }}</button>
+          </nav>
+        </header>
+        <main>
+          <div v-if="!dbReady" class="card">
+            <div class="muted mono">Initializing DuckDB-WASM…</div>
+          </div>
+          <template v-else>
+            <div v-show="tab === 'load'"><FileLoader :db="db" @loaded="refreshTables" /></div>
+            <div v-show="tab === 'all'"><AllInvoices :db="db" :key="Array.from(tables).join(',')" /></div>
+            <div v-show="tab === 'products'"><ProductAnalytics :db="db" :key="Array.from(tables).join(',')" /></div>
+            <div v-show="tab === 'extracts'"><Extracts :db="db" :key="Array.from(tables).join(',')" /></div>
+          </template>
+        </main>
+      `
+    };
+
+    createApp(App).mount('#app');
+  })();
+  </script>
+</body>
+</html>
