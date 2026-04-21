@@ -9,5 +9,10 @@ wheels/
 # Virtual environments
 .venv
 
+# Mac-related cache
+**/.DS_Store
+
 #dotenv
 **/.env
+
+**/*.csv
