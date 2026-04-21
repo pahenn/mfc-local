@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sales Dashboard</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --panel-2: #f0f2f5;
+      --border: #e2e5ea;
+      --text: #1a1d23;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --accent-2: #1d4ed8;
+      --ok: #059669;
+      --warn: #b45309;
+      --err: #b91c1c;
+      --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+    a { color: var(--accent); }
+
+    header.app {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel);
+      position: sticky; top: 0; z-index: 10;
+    }
+    header.app h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+    header.app .muted { color: var(--muted); font-size: 12px; margin-left: 10px; }
+
+    nav.tabs { display: flex; gap: 2px; }
+    nav.tabs button {
+      background: transparent; color: var(--muted); border: 1px solid transparent;
+      padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    nav.tabs button:hover { color: var(--text); }
+    nav.tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
+
+    main { padding: 20px; max-width: 80rem; margin: 0 auto; }
+
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 18px; margin-bottom: 16px;
+    }
+    .card h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+    .card .q { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+    .card .missing { color: var(--warn); font-size: 12px; padding: 10px; background: rgba(247, 185, 85, 0.08); border: 1px dashed var(--warn); border-radius: 6px; }
+    .card .err { color: var(--err); font-size: 12px; padding: 10px; background: rgba(239, 106, 106, 0.08); border: 1px solid var(--err); border-radius: 6px; font-family: var(--mono); white-space: pre-wrap; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    @media (max-width: 1000px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+    .bignum { font-size: 28px; font-weight: 600; letter-spacing: -0.3px; }
+    .bignum .suffix { font-size: 13px; color: var(--muted); margin-left: 6px; font-weight: 400; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    button.primary {
+      background: var(--accent-2); color: white; border: 0; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+    }
+    button.primary:hover { background: #2563eb; }
+    button.ghost {
+      background: transparent; color: var(--text); border: 1px solid var(--border); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    button.ghost:hover { background: var(--panel-2); }
+
+    select, input[type="text"], input[type="date"] {
+      background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+      padding: 7px 10px; border-radius: 6px; font-size: 13px; font-family: inherit;
+    }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+
+    textarea.sql {
+      width: 100%; min-height: 180px; background: #f3f4f6; color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: var(--mono); font-size: 13px;
+      resize: vertical;
+    }
+
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: 10px; padding: 40px 20px; text-align: center;
+      background: var(--panel); transition: background 0.15s, border-color 0.15s;
+    }
+    .dropzone.drag { background: var(--panel-2); border-color: var(--accent); }
+    .dropzone .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+    .pill.ok { background: rgba(60, 207, 145, 0.15); color: var(--ok); }
+    .pill.warn { background: rgba(247, 185, 85, 0.15); color: var(--warn); }
+    .pill.err { background: rgba(239, 106, 106, 0.15); color: var(--err); }
+
+    .chart-wrap { margin-top: 4px; }
+    .chart-wrap svg { max-width: 100%; height: auto; }
+    figure { margin: 0; }
+
+    .flex { display: flex; gap: 10px; align-items: center; }
+    .flex.wrap { flex-wrap: wrap; }
+    .spacer { flex: 1; }
+    .mono { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+    details.sql-peek { margin-top: 10px; }
+    details.sql-peek summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+    details.sql-peek pre { background: #f3f4f6; border: 1px solid var(--border); padding: 10px; border-radius: 6px; font-size: 12px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+  <script>
+  (async () => {
+    const [duckdb, Plot] = await Promise.all([
+      import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm'),
+      import('https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6.17/+esm'),
+    ]);
+    const { createApp, ref, reactive, computed, onMounted, watch, shallowRef } = Vue;
+
+    // ─────────────────────────────────────────────────────────────
+    // DuckDB init — Blob-worker pattern works from file:// origin
+    // ─────────────────────────────────────────────────────────────
+    async function initDuckDB() {
+      const bundles = duckdb.getJsDelivrBundles();
+      const bundle = await duckdb.selectBundle(bundles);
+      const workerCode = `importScripts("${bundle.mainWorker}");`;
+      const workerUrl = URL.createObjectURL(new Blob([workerCode], { type: 'text/javascript' }));
+      const worker = new Worker(workerUrl);
+      const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
+      const db = new duckdb.AsyncDuckDB(logger, worker);
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      URL.revokeObjectURL(workerUrl);
+      return db;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // CSV identification — map file name → canonical table name
+    // ─────────────────────────────────────────────────────────────
+    function classifyCsv(filename) {
+      const n = filename.toLowerCase();
+      if (/header|inv.*h\b|invoice_?h/.test(n)) return 'invoice_header';
+      if (/detail|line|inv.*d\b|invoice_?d/.test(n)) return 'invoice_detail';
+      if (/account|customer|client|party/.test(n)) return 'accounts';
+      return null;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Query helper — run SQL, return array of plain objects
+    // ─────────────────────────────────────────────────────────────
+    async function runQuery(db, sql) {
+      const conn = await db.connect();
+      try {
+        const result = await conn.query(sql);
+        const fields = result.schema.fields;
+        return result.toArray().map(r => {
+          const o = {};
+          for (const f of fields) {
+            let v = r[f.name];
+            if (typeof v === 'bigint') v = Number(v);
+            const typeId = f.type?.typeId;
+            if (v != null && !(v instanceof Date) && (typeId === 8 || typeId === 10)) {
+              v = new Date(Number(v));
+            }
+            o[f.name] = v;
+          }
+          return o;
+        });
+      } finally {
+        await conn.close();
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Formatters
+    // ─────────────────────────────────────────────────────────────
+    const money = (n) => (n == null || Number.isNaN(+n)) ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(+n);
+    const num = (n) => (n == null || Number.isNaN(+n)) ? '—' : new Intl.NumberFormat('en-US').format(+n);
+    const ymd = (d) => { if (!d) return '—'; const dt = new Date(d); return dt.toISOString().slice(0,10); };
+    const monthLabel = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+    const asDate = (v) => v instanceof Date ? v : new Date(Number(v));
+
+    // ─────────────────────────────────────────────────────────────
+    // Reusable chart component
+    // ─────────────────────────────────────────────────────────────
+    const PlotChart = {
+      props: ['spec'],
+      setup(props) {
+        const el = ref(null);
+        let ro = null;
+        const render = () => {
+          if (!el.value || !props.spec) return;
+          const width = Math.max(320, Math.floor(el.value.clientWidth || 800));
+          const spec = { ...props.spec, width };
+          el.value.innerHTML = '';
+          try {
+            el.value.appendChild(Plot.plot(spec));
+          } catch (e) {
+            el.value.innerHTML = `<div class="err">${e.message}</div>`;
+          }
+        };
+        onMounted(() => {
+          render();
+          ro = new ResizeObserver(() => render());
+          ro.observe(el.value);
+        });
+        watch(() => props.spec, render, { deep: true });
+        return { el };
+      },
+      template: `<div ref="el" class="chart-wrap" style="width: 100%"></div>`
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Async SQL-card — renders loading / error / slot
+    // ─────────────────────────────────────────────────────────────
+    const SqlCard = {
+      props: ['title', 'question', 'sql', 'db', 'requires'],
+      emits: [],
+      setup(props, { slots }) {
+        const state = reactive({ loading: false, error: null, rows: null, missing: null });
+        const run = async () => {
+          state.loading = true;
+          state.error = null;
+          state.rows = null;
+          state.missing = null;
+          if (!props.db) { state.loading = false; return; }
+          if (props.requires) {
+            const missing = props.requires.filter(t => !props.db.__tables.has(t));
+            if (missing.length) { state.missing = missing; state.loading = false; return; }
+          }
+          try {
+            state.rows = await runQuery(props.db, props.sql);
+          } catch (e) {
+            state.error = e.message;
+          } finally {
+            state.loading = false;
+          }
+        };
+        watch(() => [props.db, props.sql], run, { immediate: true });
+        return { state, slots };
+      },
+      template: `
+        <div class="card">
+          <h2>{{ title }}</h2>
+          <div class="q">{{ question }}</div>
+          <div v-if="!db" class="missing">Load CSVs to see this.</div>
+          <div v-else-if="state.loading" class="muted mono">Running query…</div>
+          <div v-else-if="state.missing" class="missing">
+            Needs: <strong>{{ state.missing.join(', ') }}</strong>.
+            <slot name="missing-hint" :missing="state.missing" />
+          </div>
+          <div v-else-if="state.error" class="err">{{ state.error }}</div>
+          <slot v-else :rows="state.rows" />
+          <details class="sql-peek">
+            <summary>SQL</summary>
+            <pre>{{ sql.trim() }}</pre>
+          </details>
+        </div>
+      `
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // File picker / loader view
+    // ─────────────────────────────────────────────────────────────
+    const FileLoader = {
+      props: ['db'],
+      emits: ['loaded'],
+      setup(props, { emit }) {
+        const dragging = ref(false);
+        const status = reactive({ loading: false, log: [], error: null });
+        const fileInput = ref(null);
+
+        const loadFiles = async (fileList) => {
+          if (!props.db) { status.error = 'Database not ready yet'; return; }
+          status.loading = true;
+          status.error = null;
+          status.log = [];
+          const files = Array.from(fileList);
+          for (const f of files) {
+            const tableName = classifyCsv(f.name);
+            if (!tableName) {
+              status.log.push({ file: f.name, table: null, msg: 'Unrecognized — skipped. Rename to contain "header", "detail", or "account".' });
+              continue;
+            }
+            try {
+              const buf = new Uint8Array(await f.arrayBuffer());
+              const regName = `${tableName}.csv`;
+              try { await props.db.dropFile(regName); } catch { /* not registered yet */ }
+              await props.db.registerFileBuffer(regName, buf);
+              const conn = await props.db.connect();
+              try {
+                await conn.query(`DROP TABLE IF EXISTS ${tableName}`);
+                await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv_auto('${regName}', sample_size=-1)`);
+                const countRes = await conn.query(`SELECT COUNT(*) AS c FROM ${tableName}`);
+                const count = Number(countRes.toArray()[0].c);
+                status.log.push({ file: f.name, table: tableName, msg: `${count.toLocaleString()} rows loaded.` });
+              } finally {
+                await conn.close();
+              }
+            } catch (e) {
+              status.log.push({ file: f.name, table: tableName, msg: `Error: ${e.message}`, err: true });
+            }
+          }
+          status.loading = false;
+          emit('loaded');
+        };
+
+        const onDrop = async (e) => {
+          e.preventDefault();
+          dragging.value = false;
+          await loadFiles(e.dataTransfer.files);
+        };
+        const onPick = async (e) => {
+          await loadFiles(e.target.files);
+        };
+
+        return { dragging, status, fileInput, onDrop, onPick };
+      },
+      template: `
+        <div class="card">
+          <h2>Load data</h2>
+          <div class="q">Drop your invoice_header.csv, invoice_detail.csv, and (optionally) accounts.csv — or click to pick files. Nothing leaves your machine.</div>
+          <div
+            class="dropzone"
+            :class="{ drag: dragging }"
+            @dragover.prevent="dragging = true"
+            @dragleave.prevent="dragging = false"
+            @drop="onDrop"
+            @click="fileInput.click()"
+            style="cursor: pointer"
+          >
+            <div><strong>Drop CSVs here</strong> or click to pick</div>
+            <div class="hint">Filenames must contain <span class="mono">header</span>, <span class="mono">detail</span>, or <span class="mono">account</span>. Anything else is ignored.</div>
+            <input ref="fileInput" type="file" accept=".csv,text/csv" multiple @change="onPick" style="display:none" />
+          </div>
+          <div v-if="status.loading" class="muted mono" style="margin-top: 12px">Loading…</div>
+          <div v-if="status.log.length" style="margin-top: 14px">
+            <table>
+              <thead><tr><th>File</th><th>Table</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr v-for="(row, i) in status.log" :key="i">
+                  <td class="mono">{{ row.file }}</td>
+                  <td>
+                    <span v-if="row.table" class="pill ok">{{ row.table }}</span>
+                    <span v-else class="pill warn">unknown</span>
+                  </td>
+                  <td :class="{ err: row.err }">{{ row.msg }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Executive Report tab
+    // ─────────────────────────────────────────────────────────────
+    const ExecutiveReport = {
+      props: ['db'],
+      components: { SqlCard, PlotChart },
+      setup(props) {
+        const q2_sql = `
+          SELECT EXTRACT(year FROM CAST(invoice_date AS DATE)) AS year,
+                 SUM(CAST(total_amount AS DOUBLE)) AS revenue
+          FROM invoice_header
+          WHERE EXTRACT(year FROM CAST(invoice_date AS DATE)) IN (2024, 2025)
+          GROUP BY 1 ORDER BY 1
+        `;
+        const q3_sql = `
+          SELECT date_trunc('month', CAST(invoice_date AS DATE)) AS month,
+                 SUM(CAST(total_amount AS DOUBLE)) AS revenue
+          FROM invoice_header
+          GROUP BY 1 ORDER BY 1
+        `;
+        const q5_sql = `
+          SELECT
+            CASE
+              WHEN LOWER(COALESCE(category, description, '')) LIKE '%oil%' THEN 'Oil change'
+              WHEN LOWER(COALESCE(category, description, '')) LIKE '%tire%'
+                OR LOWER(COALESCE(category, description, '')) LIKE '%rotation%' THEN 'Tire rotation'
+              WHEN LOWER(COALESCE(category, description, '')) LIKE '%engine filter%'
+                OR LOWER(COALESCE(category, description, '')) LIKE '%oil filter%' THEN 'Engine filters'
+              WHEN LOWER(COALESCE(category, description, '')) LIKE '%cabin%' THEN 'Cabin air filters'
+              ELSE 'Other'
+            END AS service_type,
+            SUM(CAST(line_amount AS DOUBLE)) AS revenue
+          FROM invoice_detail
+          GROUP BY 1 ORDER BY 2 DESC
+        `;
+        const q6_sql = `
+          WITH account_totals AS (
+            SELECT account_id, SUM(CAST(total_amount AS DOUBLE)) AS total_rev
+            FROM invoice_header
+            WHERE CAST(invoice_date AS DATE) >= CURRENT_DATE - INTERVAL 12 MONTH
+            GROUP BY 1
+          ),
+          bucketed AS (
+            SELECT account_id, total_rev,
+              CASE
+                WHEN total_rev < 10000 THEN '1. Small (<$10k)'
+                WHEN total_rev < 50000 THEN '2. Medium ($10k–$50k)'
+                WHEN total_rev < 250000 THEN '3. Large ($50k–$250k)'
+                ELSE '4. Extra Large ($250k+)'
+              END AS size_bucket
+            FROM account_totals
+          )
+          SELECT size_bucket, COUNT(*) AS accounts, SUM(total_rev) AS revenue
+          FROM bucketed
+          GROUP BY 1 ORDER BY 1
+        `;
+        const q7_sql = `
+          WITH last_activity AS (
+            SELECT account_id, MAX(CAST(invoice_date AS DATE)) AS last_date
+            FROM invoice_header
+            GROUP BY 1
+          )
+          SELECT
+            SUM(CASE WHEN CURRENT_DATE - last_date > 180 THEN 1 ELSE 0 END) AS inactive_6m_plus,
+            SUM(CASE WHEN CURRENT_DATE - last_date > 365 THEN 1 ELSE 0 END) AS inactive_12m_plus,
+            SUM(CASE WHEN CURRENT_DATE - last_date > 547 THEN 1 ELSE 0 END) AS inactive_18m_plus,
+            SUM(CASE WHEN CURRENT_DATE - last_date > 730 THEN 1 ELSE 0 END) AS inactive_24m_plus
+          FROM last_activity
+        `;
+        const q9_sql = `
+          SELECT
+            SUM(CASE WHEN CAST(cancelled_date AS DATE) >= CURRENT_DATE - INTERVAL 12 MONTH THEN 1 ELSE 0 END) AS cancelled_12m,
+            SUM(CASE WHEN CAST(cancelled_date AS DATE) >= CURRENT_DATE - INTERVAL 24 MONTH THEN 1 ELSE 0 END) AS cancelled_24m
+          FROM accounts
+          WHERE cancelled_date IS NOT NULL
+        `;
+        const q10_sql = `
+          WITH cancelled AS (
+            SELECT account_id, CAST(cancelled_date AS DATE) AS cancelled_date
+            FROM accounts
+            WHERE cancelled_date IS NOT NULL
+          ),
+          trailing_rev AS (
+            SELECT c.account_id, c.cancelled_date,
+              SUM(CAST(ih.total_amount AS DOUBLE)) AS trailing_12m_rev
+            FROM cancelled c
+            LEFT JOIN invoice_header ih
+              ON ih.account_id = c.account_id
+             AND CAST(ih.invoice_date AS DATE) BETWEEN c.cancelled_date - INTERVAL 12 MONTH AND c.cancelled_date
+            GROUP BY 1, 2
+          )
+          SELECT
+            SUM(CASE WHEN cancelled_date >= CURRENT_DATE - INTERVAL 12 MONTH THEN trailing_12m_rev ELSE 0 END) AS lost_rev_12m,
+            SUM(CASE WHEN cancelled_date >= CURRENT_DATE - INTERVAL 24 MONTH THEN trailing_12m_rev ELSE 0 END) AS lost_rev_24m
+          FROM trailing_rev
+        `;
+        const q11_sql = `
+          SELECT cancellation_reason, COUNT(*) AS accounts
+          FROM accounts
+          WHERE cancelled_date IS NOT NULL
+            AND cancellation_reason IS NOT NULL
+          GROUP BY 1 ORDER BY 2 DESC LIMIT 5
+        `;
+
+        const q3_spec = (rows) => ({
+          height: 280, marginLeft: 70,
+          y: { grid: true, label: 'Revenue ($)' },
+          x: { label: null },
+          marks: [
+            Plot.lineY(rows, { x: d => asDate(d.month), y: 'revenue', stroke: '#2563eb', strokeWidth: 2 }),
+            Plot.dot(rows, { x: d => asDate(d.month), y: 'revenue', fill: '#2563eb', r: 3, tip: true, title: d => `${monthLabel(d.month)}\n${money(d.revenue)}` }),
+            Plot.ruleY([0]),
+          ]
+        });
+        const q5_spec = (rows) => ({
+          height: 300, marginLeft: 150,
+          x: { grid: true, label: 'Revenue ($)' },
+          y: { label: null },
+          marks: [
+            Plot.barX(rows, { x: 'revenue', y: 'service_type', fill: '#1d4ed8', sort: { y: '-x' }, tip: true, title: d => `${d.service_type}\n${money(d.revenue)}` }),
+            Plot.ruleX([0]),
+          ]
+        });
+        const q6_spec = (rows) => ({
+          height: 260, marginLeft: 200,
+          x: { grid: true, label: 'Accounts' },
+          y: { label: null },
+          marks: [
+            Plot.barX(rows, { x: 'accounts', y: 'size_bucket', fill: '#059669', tip: true, title: d => `${d.size_bucket}\n${d.accounts} accounts · ${money(d.revenue)}` }),
+            Plot.text(rows, { x: 'accounts', y: 'size_bucket', text: d => `${d.accounts} · ${money(d.revenue)}`, dx: 6, textAnchor: 'start', fill: '#1a1d23' }),
+            Plot.ruleX([0]),
+          ]
+        });
+
+        return { q2_sql, q3_sql, q5_sql, q6_sql, q7_sql, q9_sql, q10_sql, q11_sql, q3_spec, q5_spec, q6_spec, money, num };
+      },
+      template: `
+        <div>
+          <!-- Q2 -->
+          <SqlCard title="Annual Fleet revenue — 2024 & 2025" question="Q2 · What has been the annual total Fleet revenue for 2024 and 2025?" :sql="q2_sql" :db="db" :requires="['invoice_header']">
+            <template #default="{ rows }">
+              <div class="grid-2">
+                <div v-for="r in rows" :key="r.year">
+                  <div class="muted" style="font-size: 12px">{{ r.year }}</div>
+                  <div class="bignum">{{ money(r.revenue) }}</div>
+                </div>
+              </div>
+            </template>
+          </SqlCard>
+
+          <!-- Q3 -->
+          <SqlCard title="Monthly revenue & seasonality" question="Q3 · How much does monthly revenue fluctuate? Any seasonality?" :sql="q3_sql" :db="db" :requires="['invoice_header']">
+            <template #default="{ rows }">
+              <PlotChart :spec="q3_spec(rows)" />
+            </template>
+          </SqlCard>
+
+          <!-- Q5 -->
+          <SqlCard title="Revenue by service type" question="Q5 · Oil change, tire rotation, engine filters, cabin air filters, other." :sql="q5_sql" :db="db" :requires="['invoice_detail']">
+            <template #missing-hint>
+              Classification uses <span class="mono">category</span> if present, else falls back to keyword matching on <span class="mono">description</span>.
+            </template>
+            <template #default="{ rows }">
+              <PlotChart :spec="q5_spec(rows)" />
+              <table style="margin-top: 12px">
+                <thead><tr><th>Service</th><th class="num">Revenue</th></tr></thead>
+                <tbody>
+                  <tr v-for="r in rows" :key="r.service_type">
+                    <td>{{ r.service_type }}</td><td class="num">{{ money(r.revenue) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
+          </SqlCard>
+
+          <!-- Q6 -->
+          <SqlCard title="Revenue distribution by account size" question="Q6 · Buckets: Small <$10k, Medium $10–50k, Large $50–250k, XL $250k+ (trailing 12 mo)." :sql="q6_sql" :db="db" :requires="['invoice_header']">
+            <template #default="{ rows }">
+              <PlotChart :spec="q6_spec(rows)" />
+            </template>
+          </SqlCard>
+
+          <!-- Q7 -->
+          <SqlCard title="Inactive accounts" question="Q7 · Accounts with no invoice activity beyond 6 / 12 / 18 / 24 months." :sql="q7_sql" :db="db" :requires="['invoice_header']">
+            <template #default="{ rows }">
+              <div class="grid-4">
+                <div><div class="muted" style="font-size: 12px">&gt; 6 months</div><div class="bignum">{{ num(rows[0].inactive_6m_plus) }}</div></div>
+                <div><div class="muted" style="font-size: 12px">&gt; 12 months</div><div class="bignum">{{ num(rows[0].inactive_12m_plus) }}</div></div>
+                <div><div class="muted" style="font-size: 12px">&gt; 18 months</div><div class="bignum">{{ num(rows[0].inactive_18m_plus) }}</div></div>
+                <div><div class="muted" style="font-size: 12px">&gt; 24 months</div><div class="bignum">{{ num(rows[0].inactive_24m_plus) }}</div></div>
+              </div>
+            </template>
+          </SqlCard>
+
+          <!-- Q9 -->
+          <SqlCard title="Cancelled accounts" question="Q9 · Count of cancellations in trailing 12 and 24 months." :sql="q9_sql" :db="db" :requires="['accounts']">
+            <template #missing-hint>
+              Requires <span class="mono">accounts.csv</span> with a <span class="mono">cancelled_date</span> column.
+            </template>
+            <template #default="{ rows }">
+              <div class="grid-2">
+                <div><div class="muted" style="font-size: 12px">Past 12 months</div><div class="bignum">{{ num(rows[0].cancelled_12m) }}</div></div>
+                <div><div class="muted" style="font-size: 12px">Past 24 months</div><div class="bignum">{{ num(rows[0].cancelled_24m) }}</div></div>
+              </div>
+            </template>
+          </SqlCard>
+
+          <!-- Q10 -->
+          <SqlCard title="Lost revenue from cancelled accounts" question="Q10 · Sum of trailing-12mo revenue at time of cancellation, for cancellations in the past 12 / 24 months." :sql="q10_sql" :db="db" :requires="['accounts', 'invoice_header']">
+            <template #default="{ rows }">
+              <div class="grid-2">
+                <div><div class="muted" style="font-size: 12px">Past 12 months</div><div class="bignum">{{ money(rows[0].lost_rev_12m) }}</div></div>
+                <div><div class="muted" style="font-size: 12px">Past 24 months</div><div class="bignum">{{ money(rows[0].lost_rev_24m) }}</div></div>
+              </div>
+            </template>
+          </SqlCard>
+
+          <!-- Q11 -->
+          <SqlCard title="Top cancellation reasons" question="Q11 · Primary reasons for cancellation." :sql="q11_sql" :db="db" :requires="['accounts']">
+            <template #default="{ rows }">
+              <table>
+                <thead><tr><th>Reason</th><th class="num">Accounts</th></tr></thead>
+                <tbody>
+                  <tr v-for="r in rows" :key="r.cancellation_reason">
+                    <td>{{ r.cancellation_reason }}</td>
+                    <td class="num">{{ num(r.accounts) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
+          </SqlCard>
+        </div>
+      `
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Account Explorer tab — Q1 (any account) + interactive filters
+    // ─────────────────────────────────────────────────────────────
+    const AccountExplorer = {
+      props: ['db'],
+      components: { PlotChart },
+      setup(props) {
+        const accountsList = ref([]);
+        const selectedKey = ref('');
+        const dateFrom = ref('');
+        const dateTo = ref('');
+        const monthlyRows = ref([]);
+        const categoryRows = ref([]);
+        const summaryRow = ref(null);
+        const error = ref(null);
+        const loading = ref(false);
+        const hasAccounts = computed(() => props.db && props.db.__tables && props.db.__tables.has('accounts'));
+
+        const loadAccounts = async () => {
+          if (!props.db) return;
+          if (!props.db.__tables || !props.db.__tables.has('invoice_header')) { accountsList.value = []; return; }
+          try {
+            if (hasAccounts.value) {
+              const rows = await runQuery(props.db, `
+                SELECT DISTINCT
+                  COALESCE(parent_account_name, account_name) AS label,
+                  COALESCE(parent_account_name, account_name) AS key
+                FROM accounts
+                ORDER BY 1
+              `);
+              accountsList.value = rows;
+            } else {
+              const rows = await runQuery(props.db, `
+                SELECT DISTINCT CAST(account_id AS VARCHAR) AS label, CAST(account_id AS VARCHAR) AS key
+                FROM invoice_header
+                ORDER BY 1
+                LIMIT 5000
+              `);
+              accountsList.value = rows;
+            }
+          } catch (e) { error.value = e.message; }
+        };
+
+        const runFilters = async () => {
+          if (!props.db || !selectedKey.value) return;
+          loading.value = true;
+          error.value = null;
+          try {
+            const join = hasAccounts.value
+              ? `JOIN accounts a ON a.account_id = ih.account_id
+                 WHERE COALESCE(a.parent_account_name, a.account_name) = '${selectedKey.value.replace(/'/g, "''")}'`
+              : `WHERE CAST(ih.account_id AS VARCHAR) = '${selectedKey.value.replace(/'/g, "''")}'`;
+            const dateClause = (dateFrom.value ? ` AND CAST(ih.invoice_date AS DATE) >= DATE '${dateFrom.value}'` : '')
+                             + (dateTo.value   ? ` AND CAST(ih.invoice_date AS DATE) <= DATE '${dateTo.value}'` : '');
+            const whereClause = join.includes('WHERE') ? join + dateClause : join + ' WHERE 1=1' + dateClause;
+
+            monthlyRows.value = await runQuery(props.db, `
+              SELECT date_trunc('month', CAST(ih.invoice_date AS DATE)) AS month,
+                     SUM(CAST(ih.total_amount AS DOUBLE)) AS revenue
+              FROM invoice_header ih
+              ${whereClause}
+              GROUP BY 1 ORDER BY 1
+            `);
+
+            const summaryRows = await runQuery(props.db, `
+              SELECT COUNT(DISTINCT ih.invoice_id) AS invoices,
+                     SUM(CAST(ih.total_amount AS DOUBLE)) AS total_revenue,
+                     MIN(CAST(ih.invoice_date AS DATE)) AS first_invoice,
+                     MAX(CAST(ih.invoice_date AS DATE)) AS last_invoice
+              FROM invoice_header ih
+              ${whereClause}
+            `);
+            summaryRow.value = summaryRows[0];
+
+            if (props.db.__tables.has('invoice_detail')) {
+              categoryRows.value = await runQuery(props.db, `
+                SELECT
+                  CASE
+                    WHEN LOWER(COALESCE(id.category, id.description, '')) LIKE '%oil%' THEN 'Oil change'
+                    WHEN LOWER(COALESCE(id.category, id.description, '')) LIKE '%tire%'
+                      OR LOWER(COALESCE(id.category, id.description, '')) LIKE '%rotation%' THEN 'Tire rotation'
+                    WHEN LOWER(COALESCE(id.category, id.description, '')) LIKE '%engine filter%'
+                      OR LOWER(COALESCE(id.category, id.description, '')) LIKE '%oil filter%' THEN 'Engine filters'
+                    WHEN LOWER(COALESCE(id.category, id.description, '')) LIKE '%cabin%' THEN 'Cabin air filters'
+                    ELSE 'Other'
+                  END AS service_type,
+                  SUM(CAST(id.line_amount AS DOUBLE)) AS revenue
+                FROM invoice_detail id
+                JOIN invoice_header ih ON ih.invoice_id = id.invoice_id
+                ${whereClause}
+                GROUP BY 1 ORDER BY 2 DESC
+              `);
+            } else {
+              categoryRows.value = [];
+            }
+          } catch (e) {
+            error.value = e.message;
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        watch(() => props.db, loadAccounts, { immediate: true });
+        watch([selectedKey, dateFrom, dateTo], runFilters);
+
+        const monthlySpec = computed(() => monthlyRows.value.length ? ({
+          height: 280, marginLeft: 70,
+          y: { grid: true, label: 'Revenue ($)' }, x: { label: null },
+          marks: [
+            Plot.lineY(monthlyRows.value, { x: d => asDate(d.month), y: 'revenue', stroke: '#2563eb', strokeWidth: 2 }),
+            Plot.dot(monthlyRows.value, { x: d => asDate(d.month), y: 'revenue', fill: '#2563eb', r: 3, tip: true, title: d => `${monthLabel(d.month)}\n${money(d.revenue)}` }),
+            Plot.ruleY([0]),
+          ]
+        }) : null);
+
+        const categorySpec = computed(() => categoryRows.value.length ? ({
+          height: 260, marginLeft: 150,
+          x: { grid: true, label: 'Revenue ($)' }, y: { label: null },
+          marks: [
+            Plot.barX(categoryRows.value, { x: 'revenue', y: 'service_type', fill: '#1d4ed8', sort: { y: '-x' }, tip: true, title: d => `${d.service_type}\n${money(d.revenue)}` }),
+            Plot.ruleX([0]),
+          ]
+        }) : null);
+
+        return { accountsList, selectedKey, dateFrom, dateTo, monthlyRows, categoryRows, summaryRow, error, loading, hasAccounts, monthlySpec, categorySpec, money, num, ymd };
+      },
+      template: `
+        <div>
+          <div class="card">
+            <h2>Account Explorer</h2>
+            <div class="q">Answers Q1 for any account. Pick a parent org (or account id if no accounts.csv loaded), optionally filter by date range.</div>
+            <div v-if="!db" class="missing">Load CSVs to begin.</div>
+            <div v-else>
+              <div class="flex wrap" style="gap: 16px">
+                <div style="min-width: 320px; flex: 1">
+                  <label>{{ hasAccounts ? 'Parent / account' : 'Account ID' }}</label>
+                  <select v-model="selectedKey" style="width: 100%">
+                    <option value="">— pick one —</option>
+                    <option v-for="a in accountsList" :key="a.key" :value="a.key">{{ a.label }}</option>
+                  </select>
+                </div>
+                <div><label>From</label><input type="date" v-model="dateFrom" /></div>
+                <div><label>To</label><input type="date" v-model="dateTo" /></div>
+              </div>
+              <div v-if="!hasAccounts" class="missing" style="margin-top: 12px">
+                No <span class="mono">accounts.csv</span> loaded — falling back to raw account IDs. Parent-org rollups unavailable.
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedKey" class="card">
+            <div v-if="loading" class="muted mono">Running queries…</div>
+            <div v-else-if="error" class="err">{{ error }}</div>
+            <div v-else-if="summaryRow">
+              <div class="grid-4" style="margin-bottom: 20px">
+                <div><div class="muted" style="font-size: 12px">Total revenue</div><div class="bignum">{{ money(summaryRow.total_revenue) }}</div></div>
+                <div><div class="muted" style="font-size: 12px">Invoices</div><div class="bignum">{{ num(summaryRow.invoices) }}</div></div>
+                <div><div class="muted" style="font-size: 12px">First invoice</div><div class="bignum" style="font-size: 18px">{{ ymd(summaryRow.first_invoice) }}</div></div>
+                <div><div class="muted" style="font-size: 12px">Last invoice</div><div class="bignum" style="font-size: 18px">{{ ymd(summaryRow.last_invoice) }}</div></div>
+              </div>
+
+              <h2 style="margin-bottom: 8px">Monthly billings</h2>
+              <PlotChart :spec="monthlySpec" />
+
+              <h2 style="margin: 22px 0 8px">Revenue by service type</h2>
+              <div v-if="categoryRows.length">
+                <PlotChart :spec="categorySpec" />
+              </div>
+              <div v-else class="muted mono">No invoice_detail loaded, or no data for this filter.</div>
+            </div>
+          </div>
+        </div>
+      `
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Raw SQL tab
+    // ─────────────────────────────────────────────────────────────
+    const RawSQL = {
+      props: ['db'],
+      setup(props) {
+        const sql = ref("SELECT table_name, column_name, data_type\nFROM information_schema.columns\nWHERE table_schema = 'main'\nORDER BY table_name, ordinal_position");
+        const rows = ref(null);
+        const columns = ref([]);
+        const error = ref(null);
+        const loading = ref(false);
+
+        const run = async () => {
+          if (!props.db) { error.value = 'No DB.'; return; }
+          loading.value = true;
+          error.value = null;
+          try {
+            const result = await runQuery(props.db, sql.value);
+            rows.value = result;
+            columns.value = result.length ? Object.keys(result[0]) : [];
+          } catch (e) {
+            error.value = e.message;
+            rows.value = null;
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        return { sql, rows, columns, error, loading, run };
+      },
+      template: `
+        <div class="card">
+          <h2>Raw SQL</h2>
+          <div class="q">Query any loaded table. Tables: invoice_header, invoice_detail, accounts (if loaded).</div>
+          <textarea class="sql" v-model="sql" spellcheck="false"></textarea>
+          <div class="flex" style="margin-top: 10px">
+            <button class="primary" @click="run" :disabled="loading">{{ loading ? 'Running…' : 'Run' }}</button>
+            <div class="muted mono">Ctrl+Enter also runs</div>
+          </div>
+          <div v-if="error" class="err" style="margin-top: 12px">{{ error }}</div>
+          <div v-if="rows" style="margin-top: 14px; overflow-x: auto">
+            <div class="muted mono">{{ rows.length }} rows</div>
+            <table>
+              <thead><tr><th v-for="c in columns" :key="c">{{ c }}</th></tr></thead>
+              <tbody>
+                <tr v-for="(r, i) in rows.slice(0, 500)" :key="i">
+                  <td v-for="c in columns" :key="c">{{ r[c] }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="rows.length > 500" class="muted mono" style="margin-top: 8px">(showing first 500)</div>
+          </div>
+        </div>
+      `
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // About / Schema tab
+    // ─────────────────────────────────────────────────────────────
+    const About = {
+      template: `
+        <div class="card">
+          <h2>How this works</h2>
+          <p>This is a single-file dashboard. Everything runs in your browser — no server, no network round-trips for your data. DuckDB-WASM reads your CSVs directly and answers SQL queries against them.</p>
+
+          <h2 style="margin-top: 20px">Expected CSV schemas</h2>
+          <p>The file picker classifies each file by its name — it must contain the word <span class="mono">header</span>, <span class="mono">detail</span>, or <span class="mono">account</span>.</p>
+
+          <h3 style="margin-top: 14px; font-size: 14px">invoice_header.csv</h3>
+          <pre style="background: #f3f4f6; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px">invoice_id       (unique)
+account_id       (FK → accounts.account_id)
+invoice_date     (YYYY-MM-DD)
+total_amount     (numeric)</pre>
+
+          <h3 style="margin-top: 14px; font-size: 14px">invoice_detail.csv</h3>
+          <pre style="background: #f3f4f6; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px">invoice_id       (FK → invoice_header.invoice_id)
+line_id          (unique within invoice — optional)
+description      (text)
+category         (optional — if present, used directly for service classification)
+quantity         (numeric — optional)
+unit_price       (numeric — optional)
+line_amount      (numeric)</pre>
+
+          <h3 style="margin-top: 14px; font-size: 14px">accounts.csv (needed for Q1 parent rollup, Q4, Q9, Q10, Q11)</h3>
+          <pre style="background: #f3f4f6; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px">account_id
+account_name
+parent_account_name      (NULL if this account is itself a parent/top-level)
+segment                  (e.g., 'Fleet' — optional)
+status                   ('Active' / 'Cancelled' / …)
+signup_date
+cancelled_date           (NULL if active)
+cancellation_reason</pre>
+
+          <h2 style="margin-top: 20px">Open questions</h2>
+          <ul>
+            <li><strong>Q4</strong> (account count under parent org) — needs <span class="mono">parent_account_name</span> on accounts.csv.</li>
+            <li><strong>Q5</strong> (service categorization) — works best with a real <span class="mono">category</span> column. Current fallback is keyword matching on description.</li>
+            <li><strong>Q6</strong> (size bucket thresholds) — currently &lt;$10k / $10–50k / $50–250k / $250k+. Adjust in code if wrong for your scale.</li>
+            <li><strong>Q8</strong> (legacy reporting history) — not a data question; answer separately in a written doc.</li>
+            <li><strong>Q10</strong> (lost revenue) — currently defined as trailing-12-mo revenue at time of cancellation. Other definitions possible (full history, run-rate extrapolation).</li>
+          </ul>
+        </div>
+      `
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Root app
+    // ─────────────────────────────────────────────────────────────
+    const App = {
+      components: { FileLoader, ExecutiveReport, AccountExplorer, RawSQL, About },
+      setup() {
+        const db = shallowRef(null);
+        const tab = ref('load');
+        const tables = ref(new Set());
+        const dbReady = ref(false);
+
+        onMounted(async () => {
+          try {
+            const instance = await initDuckDB();
+            instance.__tables = tables.value;
+            db.value = instance;
+            dbReady.value = true;
+          } catch (e) {
+            console.error(e);
+            alert('DuckDB failed to initialize:\n' + e.message + '\n\nThis sometimes happens on very old browsers or with offline/cached CDN issues.');
+          }
+        });
+
+        const refreshTables = async () => {
+          if (!db.value) return;
+          try {
+            const rows = await runQuery(db.value, `SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'`);
+            const s = new Set(rows.map(r => r.table_name));
+            tables.value = s;
+            db.value.__tables = s;
+            if (s.size > 0 && tab.value === 'load') tab.value = 'report';
+          } catch (e) { console.error(e); }
+        };
+
+        const tabsMeta = [
+          { key: 'load',     label: 'Load data' },
+          { key: 'report',   label: 'Executive Report' },
+          { key: 'explorer', label: 'Account Explorer' },
+          { key: 'sql',      label: 'Raw SQL' },
+          { key: 'about',    label: 'About / Schema' },
+        ];
+
+        return { db, tab, tabsMeta, tables, dbReady, refreshTables };
+      },
+      template: `
+        <header class="app">
+          <div class="flex">
+            <h1>Sales Dashboard</h1>
+            <span class="muted">DuckDB-WASM · local-only · no upload</span>
+          </div>
+          <nav class="tabs">
+            <button v-for="t in tabsMeta" :key="t.key" :class="{ active: tab === t.key }" @click="tab = t.key">{{ t.label }}</button>
+          </nav>
+        </header>
+        <main>
+          <div v-if="!dbReady" class="card">
+            <div class="muted mono">Initializing DuckDB-WASM…</div>
+          </div>
+          <template v-else>
+            <div v-show="tab === 'load'"><FileLoader :db="db" @loaded="refreshTables" /></div>
+            <div v-show="tab === 'report'"><ExecutiveReport :db="db" :key="Array.from(tables).join(',')" /></div>
+            <div v-show="tab === 'explorer'"><AccountExplorer :db="db" :key="Array.from(tables).join(',')" /></div>
+            <div v-show="tab === 'sql'"><RawSQL :db="db" /></div>
+            <div v-show="tab === 'about'"><About /></div>
+          </template>
+        </main>
+      `
+    };
+
+    createApp(App).mount('#app');
+  })();
+  </script>
+</body>
+</html>
