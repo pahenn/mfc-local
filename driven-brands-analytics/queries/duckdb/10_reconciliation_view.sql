@@ -1,6 +1,6 @@
 -- ─────────────────────────────────────────────────────────────────────────
 -- DuckDB: reconciliation view — Fleet × Store × Month
--- One row per (fleetCode, t5StoreNumber, period).
+-- One row per (fleetCode, storeNumber, period).
 --
 -- Join path (matches the MFC legacy stored procs):
 --   Invoice.SiteID     → Site.SiteID              (global store master)
@@ -27,18 +27,17 @@ SELECT
     -- Fleet grain
     f.fleetID,
     f.fleetCode,
-    f.fleetCompanyName  AS fleetName,
+    f.fleetAccountName  AS fleetName,
 
     -- Store grain
     s.siteID,
-    s.storeNumber       AS rawStoreNumber,
     CASE
       WHEN s.storeNumber LIKE '%828' AND length(s.storeNumber) > 6
         THEN TRY_CAST(substring(s.storeNumber, 4, length(s.storeNumber) - 6) AS INTEGER)
       WHEN length(s.storeNumber) > 3
         THEN TRY_CAST(substring(s.storeNumber, 4, length(s.storeNumber) - 3) AS INTEGER)
       ELSE NULL
-    END                 AS t5StoreNumber,
+    END                 AS storeNumber,
     s.siteName,
     s.region,
     s.district,
@@ -67,8 +66,7 @@ SELECT
     ) AS totalAiFee,
 
     -- Flags
-    i.invoiceFactored,
-    i.pending
+    i.voided
 FROM invoices i
   LEFT JOIN fleets            f  ON f.fleetID           = i.fleetID
   LEFT JOIN sites             s  ON s.siteID            = i.siteID
@@ -84,7 +82,7 @@ SELECT
     period,
     fleetCode,
     fleetName,
-    t5StoreNumber,
+    storeNumber,
     siteName,
     COUNT(DISTINCT invoiceID)  AS invoiceCount,
     SUM(invoiceTotalAmount)    AS totalInvoice,
@@ -98,6 +96,6 @@ SELECT
     MAX(invoiceDate)           AS lastInvoiceDate
 FROM v_invoice_enriched
 GROUP BY 1, 2, 3, 4, 5
-ORDER BY period DESC, fleetName, t5StoreNumber;
+ORDER BY period DESC, fleetName, storeNumber;
 
 SELECT * FROM v_fleet_store_month LIMIT 50;

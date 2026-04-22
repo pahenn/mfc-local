@@ -18,7 +18,7 @@ SELECT
     ie.period,
     ie.fleetCode,
     ie.fleetName,
-    ie.t5StoreNumber,
+    ie.storeNumber,
     ie.siteName
 FROM invoice_item_bridge iib
   INNER JOIN v_invoice_enriched ie ON ie.invoiceID = iib.invoiceID;
@@ -38,21 +38,21 @@ ORDER BY totalRevenue DESC;
 -- Per-store product mix — answers "is this a shop issue or a product issue?"
 CREATE OR REPLACE VIEW v_store_product_mix AS
 SELECT
-    t5StoreNumber,
+    storeNumber,
     siteName,
     serviceCatgCode,
     SUM(serviceActualAmount) AS revenue,
     COUNT(*)                 AS lines
 FROM v_line_enriched
 GROUP BY 1, 2, 3
-ORDER BY t5StoreNumber, revenue DESC;
+ORDER BY storeNumber, revenue DESC;
 
 -- Bucketed into the common service types (matches the sales-dashboard Q5 buckets)
 CREATE OR REPLACE VIEW v_service_type_rollup AS
 SELECT
     period,
     fleetCode,
-    t5StoreNumber,
+    storeNumber,
     CASE
         WHEN lower(coalesce(itemDescription, '')) LIKE '%oil change%' THEN 'Oil change'
         WHEN lower(coalesce(itemDescription, '')) LIKE '%tire%'
@@ -70,4 +70,4 @@ SELECT
     COUNT(*)                 AS lines
 FROM v_line_enriched
 GROUP BY 1, 2, 3, 4
-ORDER BY period DESC, fleetCode, t5StoreNumber, revenue DESC;
+ORDER BY period DESC, fleetCode, storeNumber, revenue DESC;

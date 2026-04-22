@@ -8,7 +8,11 @@
 SELECT
     f.[FleetID]                     AS fleetID,
     f.[Fleet_Code]                  AS fleetCode,
-    f.[Fleet_CompanyName]           AS fleetCompanyName,
+    -- Match the shape Driven Brands uses in their KPI export:
+    --   fleetAccountNumber = the numeric portion of Fleet_Code (same value as FleetID)
+    --   fleetAccountName   = the fleet's company name
+    f.[FleetID]                     AS fleetAccountNumber,
+    f.[Fleet_CompanyName]           AS fleetAccountName,
     f.[Fleet_Credit]                AS fleetCredit,
     f.[Fleet_Credit_PreLive]        AS fleetCreditPreLive,
     f.[Fleet_CreatedOn]             AS fleetCreatedOn,

@@ -172,12 +172,13 @@
       if (/fleet/.test(n))                                  return 'fleets';
       if (/invoice_?item|item_?bridge|line_?item/.test(n))  return 'invoice_item_bridge';
       if (/invoice/.test(n))                                return 'invoices';
+      if (/kpi/.test(n))                                    return 'driven_brands_kpi';
       if (/driven|expected/.test(n))                        return 'driven_brands_expected';
       return null;
     }
 
     const REQUIRED_TABLES = ['corporation_types', 'customers', 'sites', 'fleets', 'invoices', 'invoice_item_bridge'];
-    const OPTIONAL_TABLES = ['driven_brands_expected'];
+    const OPTIONAL_TABLES = ['driven_brands_expected', 'driven_brands_kpi'];
 
     // ─────────────────────────────────────────────────────────────
     // View-creation SQL — mirrors queries/duckdb/10_*.sql and 20_*.sql.
@@ -192,16 +193,15 @@
        SELECT
          i.invoiceID, i.invoiceNumber, i.invoiceDate,
          date_trunc('month', CAST(i.invoiceDate AS DATE)) AS period,
-         f.fleetID, f.fleetCode, f.fleetCompanyName AS fleetName,
+         f.fleetID, f.fleetCode, f.fleetAccountNumber, f.fleetAccountName AS fleetName,
          s.siteID,
-         s.storeNumber AS rawStoreNumber,
          CASE
            WHEN s.storeNumber LIKE '%828' AND length(s.storeNumber) > 6
              THEN TRY_CAST(substring(s.storeNumber, 4, length(s.storeNumber) - 6) AS INTEGER)
            WHEN length(s.storeNumber) > 3
              THEN TRY_CAST(substring(s.storeNumber, 4, length(s.storeNumber) - 3) AS INTEGER)
            ELSE NULL
-         END AS t5StoreNumber,
+         END AS storeNumber,
          s.siteName,
          s.region,
          s.district,
@@ -219,7 +219,14 @@
           + COALESCE(TRY_CAST(i.invoiceTotalAmount AS DOUBLE), 0.0)
             * COALESCE(TRY_CAST(c.aiInvoicePctFee AS DOUBLE),
                        TRY_CAST(ct.aiFeePct AS DOUBLE), 0.0)) AS totalAiFee,
-         i.invoiceFactored, i.pending
+         COALESCE(TRY_CAST(i.voided AS INTEGER), 0) AS voided,
+         TRY_CAST(i.invoiceBilledOutOnAutoIntegrate AS TIMESTAMP) AS invoiceBilledOutOnAutoIntegrate,
+         TRY_CAST(i.invoiceBillingFeesAutoIntegrate AS DOUBLE)    AS invoiceBillingFeesAutoIntegrate,
+         CASE
+           WHEN i.invoiceBilledOutOnAutoIntegrate IS NOT NULL
+             OR COALESCE(TRY_CAST(i.invoiceBillingFeesAutoIntegrate AS DOUBLE), 0.0) > 0
+           THEN 1 ELSE 0
+         END AS isAiInvoice
        FROM invoices i
          LEFT JOIN fleets f            ON f.fleetID          = i.fleetID
          LEFT JOIN sites s             ON s.siteID           = i.siteID
@@ -227,7 +234,7 @@
          LEFT JOIN corporation_types ct ON ct.corporationType = c.corpType`,
 
       `CREATE OR REPLACE VIEW v_fleet_store_month AS
-       SELECT period, fleetCode, fleetName, t5StoreNumber, siteName,
+       SELECT period, fleetCode, fleetName, storeNumber, siteName,
               COUNT(DISTINCT invoiceID)  AS invoiceCount,
               SUM(invoiceTotalAmount)    AS totalInvoice,
               SUM(mfcBalance)            AS mfcTotalBalance,
@@ -247,13 +254,15 @@
               TRY_CAST(iib.serviceActualQuantity AS DOUBLE) AS serviceActualQuantity,
               TRY_CAST(iib.serviceAmount AS DOUBLE)         AS serviceAmount,
               TRY_CAST(iib.serviceActualAmount AS DOUBLE)   AS serviceActualAmount,
-              ie.period, ie.fleetCode, ie.fleetName, ie.t5StoreNumber, ie.siteName,
-              ie.region, ie.district, ie.division
+              ie.invoiceNumber, ie.invoiceDate,
+              ie.period, ie.fleetCode, ie.fleetAccountNumber, ie.fleetName, ie.storeNumber, ie.siteName,
+              ie.region, ie.district, ie.division,
+              ie.voided, ie.isAiInvoice
        FROM invoice_item_bridge iib
          INNER JOIN v_invoice_enriched ie ON ie.invoiceID = iib.invoiceID`,
 
       `CREATE OR REPLACE VIEW v_store_totals AS
-       SELECT t5StoreNumber,
+       SELECT storeNumber,
               MAX(NULLIF(TRIM(siteName), ''))  AS siteName,
               MAX(region)                       AS region,
               MAX(district)                     AS district,
@@ -267,13 +276,13 @@
               SUM(totalMfcFee)                  AS totalMfcFee,
               SUM(totalAiFee)                   AS totalAiFee
        FROM v_invoice_enriched
-       WHERE t5StoreNumber IS NOT NULL
-       GROUP BY t5StoreNumber`,
+       WHERE storeNumber IS NOT NULL
+       GROUP BY storeNumber`,
 
       `CREATE OR REPLACE VIEW v_fleet_totals AS
        SELECT fleetCode,
               MAX(fleetName)                    AS fleetName,
-              COUNT(DISTINCT t5StoreNumber)     AS storeCount,
+              COUNT(DISTINCT storeNumber)     AS storeCount,
               COUNT(DISTINCT invoiceID)         AS invoiceCount,
               SUM(invoiceTotalAmount)           AS totalInvoice,
               SUM(mfcBalance)                   AS mfcTotalBalance,
@@ -287,7 +296,7 @@
        GROUP BY fleetCode`,
 
       `CREATE OR REPLACE VIEW v_service_type_rollup AS
-       SELECT period, fleetCode, t5StoreNumber,
+       SELECT period, fleetCode, storeNumber,
          CASE
            WHEN lower(coalesce(itemDescription,'')) LIKE '%oil change%'   THEN 'Oil change'
            WHEN lower(coalesce(itemDescription,'')) LIKE '%tire%'
@@ -308,16 +317,87 @@
 
       `CREATE TABLE IF NOT EXISTS driven_brands_expected (
          period          DATE,
-         t5StoreNumber   INTEGER,
+         storeNumber     INTEGER,
          fleetCode       VARCHAR,
          expectedRevenue DECIMAL(19,4)
        )`,
+
+      // Driven Brands weekly KPI export (optional). Stub is created first so
+      // the views below compile even when the user hasn't dropped the CSV.
+      // The real table (with its own inferred schema) is created by the
+      // FileLoader or 00_load.sql when the file is present; CREATE TABLE
+      // IF NOT EXISTS is a no-op at that point.
+      `CREATE TABLE IF NOT EXISTS driven_brands_kpi (
+         yearMonth            VARCHAR,
+         date                 DATE,
+         fleetAccountName     VARCHAR,
+         fleetAccountNumber   INTEGER,
+         region               VARCHAR,
+         storeNumber          INTEGER,
+         weekEnding           DATE,
+         coscFz               VARCHAR,
+         airFilters           INTEGER,
+         cabinFilters         INTEGER,
+         carsPerDay           INTEGER,
+         coolant              INTEGER,
+         discountsDollars     DOUBLE,
+         grossSales           DOUBLE,
+         oilChanges           INTEGER,
+         wipers               INTEGER,
+         differentialFluidPct DOUBLE
+       )`,
+
+      `CREATE OR REPLACE VIEW v_driven_brands_kpi AS
+       SELECT
+         yearMonth,
+         TRY_CAST(date AS DATE)       AS date,
+         fleetAccountName,
+         TRY_CAST(fleetAccountNumber AS INTEGER) AS fleetAccountNumber,
+         region,
+         TRY_CAST(storeNumber AS INTEGER)        AS storeNumber,
+         TRY_CAST(weekEnding AS DATE) AS weekEnding,
+         date_trunc('month', TRY_CAST(weekEnding AS DATE)) AS period,
+         coscFz,
+         TRY_CAST(airFilters AS INTEGER)      AS airFilters,
+         TRY_CAST(cabinFilters AS INTEGER)    AS cabinFilters,
+         TRY_CAST(carsPerDay AS INTEGER)      AS carsPerDay,
+         TRY_CAST(coolant AS INTEGER)         AS coolant,
+         TRY_CAST(discountsDollars AS DOUBLE) AS discountsDollars,
+         TRY_CAST(grossSales AS DOUBLE)       AS grossSales,
+         TRY_CAST(oilChanges AS INTEGER)      AS oilChanges,
+         TRY_CAST(wipers AS INTEGER)          AS wipers,
+         TRY_CAST(differentialFluidPct AS DOUBLE) AS differentialFluidPct
+       FROM driven_brands_kpi`,
+
+      `CREATE OR REPLACE VIEW v_driven_brands_monthly AS
+       SELECT
+         period,
+         fleetAccountNumber,
+         MAX(fleetAccountName)      AS fleetAccountName,
+         storeNumber,
+         MAX(region)                AS drivenRegion,
+         MAX(coscFz)                AS coscFz,
+         SUM(grossSales)            AS grossSales,
+         SUM(discountsDollars)      AS discountsDollars,
+         SUM(carsPerDay)            AS carsPerDay,
+         SUM(oilChanges)            AS oilChanges,
+         SUM(airFilters)            AS airFilters,
+         SUM(cabinFilters)          AS cabinFilters,
+         SUM(coolant)               AS coolant,
+         SUM(wipers)                AS wipers,
+         AVG(differentialFluidPct)  AS differentialFluidPct,
+         COUNT(DISTINCT weekEnding) AS weekCount,
+         MIN(weekEnding)            AS firstWeekEnding,
+         MAX(weekEnding)            AS lastWeekEnding
+       FROM v_driven_brands_kpi
+       WHERE period IS NOT NULL
+       GROUP BY period, fleetAccountNumber, storeNumber`,
 
       `CREATE OR REPLACE VIEW v_variance_fleet_store_month AS
        SELECT COALESCE(m.period, d.period)                AS period,
               COALESCE(m.fleetCode, d.fleetCode)          AS fleetCode,
               COALESCE(m.fleetName, '<unknown>')          AS fleetName,
-              COALESCE(m.t5StoreNumber, d.t5StoreNumber)  AS t5StoreNumber,
+              COALESCE(m.storeNumber, d.storeNumber)  AS storeNumber,
               COALESCE(m.siteName, '<unknown>')           AS siteName,
               m.totalInvoice     AS mfcTotalInvoice,
               m.mfcTotalBalance  AS mfcTotalBalance,
@@ -335,7 +415,7 @@
               m.invoiceCount AS mfcInvoiceCount
        FROM v_fleet_store_month m
        FULL OUTER JOIN driven_brands_expected d
-         ON d.period = m.period AND d.fleetCode = m.fleetCode AND d.t5StoreNumber = m.t5StoreNumber`,
+         ON d.period = m.period AND d.fleetCode = m.fleetCode AND d.storeNumber = m.storeNumber`,
     ];
 
     async function createViews(db) {
@@ -376,7 +456,7 @@
     const money = (n) => (n == null || Number.isNaN(+n)) ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(+n);
     const num = (n) => (n == null || Number.isNaN(+n)) ? '—' : new Intl.NumberFormat('en-US').format(+n);
     const ymd = (d) => { if (!d) return '—'; const dt = new Date(d); return dt.toISOString().slice(0,10); };
-    const monthLabel = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+    const monthLabel = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
     const asDate = (v) => v instanceof Date ? v : new Date(Number(v));
 
     // ─────────────────────────────────────────────────────────────
@@ -567,7 +647,7 @@
           for (const f of files) {
             const tableName = classifyCsv(f.name);
             if (!tableName) {
-              status.log.push({ file: f.name, table: null, msg: 'Unrecognized — expected one of: corporation_types, customers, customer_sites, fleets, invoices, invoice_item_bridge, driven_brands_expected.' });
+              status.log.push({ file: f.name, table: null, msg: 'Unrecognized — expected one of: corporation_types, customers, sites, fleets, invoices, invoice_item_bridge, driven_brands_kpi, driven_brands_expected.' });
               continue;
             }
             try {
@@ -618,7 +698,7 @@
             style="cursor: pointer"
           >
             <div><strong>Drop CSVs here</strong> or click to pick</div>
-            <div class="hint">Required: <span class="mono">corporation_types</span>, <span class="mono">customers</span>, <span class="mono">sites</span>, <span class="mono">fleets</span>, <span class="mono">invoices</span>, <span class="mono">invoice_item_bridge</span>. Optional: <span class="mono">driven_brands_expected</span>.</div>
+            <div class="hint">Required: <span class="mono">corporation_types</span>, <span class="mono">customers</span>, <span class="mono">sites</span>, <span class="mono">fleets</span>, <span class="mono">invoices</span>, <span class="mono">invoice_item_bridge</span>. Optional: <span class="mono">driven_brands_kpi</span>, <span class="mono">driven_brands_expected</span>.</div>
             <input ref="fileInput" type="file" accept=".csv,text/csv" multiple @change="onPick" style="display:none" />
           </div>
           <div v-if="status.loading" class="muted mono" style="margin-top: 12px">Loading…</div>
@@ -647,14 +727,16 @@
     // Shared facet composable
     // ─────────────────────────────────────────────────────────────
     const useFacets = (db) => {
-      const period = ref('all');
-      const fleetCode = ref('all');
+      const startDate = ref('');
+      const endDate = ref('');
+      const fleetAccountNumber = ref('all');
       const storeNumber = ref('all');
       const region = ref('all');
       const district = ref('all');
       const search = ref('');
+      // 'exclude' = hide voided (default), 'include' = voided + non-voided, 'only' = voided only
+      const voided = ref('exclude');
 
-      const periods = ref([]);
       const fleets = ref([]);
       const stores = ref([]);
       const regions = ref([]);
@@ -664,19 +746,14 @@
 
       const loadFacets = async () => {
         if (!hasData.value) return;
-        const p = await runQuery(db.value, `SELECT DISTINCT period FROM v_invoice_enriched WHERE period IS NOT NULL ORDER BY period DESC`);
-        periods.value = p.map(x => {
-          const d = x.period instanceof Date ? x.period : new Date(x.period);
-          return { iso: d.toISOString().slice(0,10), label: monthLabel(d) };
-        });
-        const f = await runQuery(db.value, `SELECT DISTINCT fleetCode, fleetName FROM v_invoice_enriched WHERE fleetCode IS NOT NULL ORDER BY fleetName`);
+        const f = await runQuery(db.value, `SELECT DISTINCT fleetAccountNumber, fleetName FROM v_invoice_enriched WHERE fleetAccountNumber IS NOT NULL ORDER BY fleetName`);
         fleets.value = f;
         const s = await runQuery(db.value, `
-          SELECT t5StoreNumber, MAX(NULLIF(TRIM(siteName), '')) AS siteName
+          SELECT storeNumber, MAX(NULLIF(TRIM(siteName), '')) AS siteName
           FROM v_invoice_enriched
-          WHERE t5StoreNumber IS NOT NULL
-          GROUP BY t5StoreNumber
-          ORDER BY t5StoreNumber
+          WHERE storeNumber IS NOT NULL
+          GROUP BY storeNumber
+          ORDER BY storeNumber
         `);
         stores.value = s;
         const r = await runQuery(db.value, `SELECT DISTINCT region FROM v_invoice_enriched WHERE region IS NOT NULL AND region <> '' ORDER BY region`);
@@ -689,19 +766,22 @@
 
       const buildWhere = (opts = {}) => {
         const c = [];
-        if (period.value !== 'all')       c.push(`period = DATE '${sqlEscape(period.value)}'`);
-        if (!opts.skipFleet && fleetCode.value !== 'all')    c.push(`fleetCode = '${sqlEscape(fleetCode.value)}'`);
-        if (!opts.skipStore && storeNumber.value !== 'all')  c.push(`t5StoreNumber = ${Number(storeNumber.value)}`);
+        if (startDate.value) c.push(`CAST(invoiceDate AS DATE) >= DATE '${sqlEscape(startDate.value)}'`);
+        if (endDate.value)   c.push(`CAST(invoiceDate AS DATE) <= DATE '${sqlEscape(endDate.value)}'`);
+        if (!opts.skipFleet && fleetAccountNumber.value !== 'all') c.push(`fleetAccountNumber = ${Number(fleetAccountNumber.value)}`);
+        if (!opts.skipStore && storeNumber.value !== 'all')  c.push(`storeNumber = ${Number(storeNumber.value)}`);
         if (region.value !== 'all')       c.push(`region = '${sqlEscape(region.value)}'`);
         if (district.value !== 'all')     c.push(`district = '${sqlEscape(district.value)}'`);
+        if (voided.value === 'exclude')   c.push(`COALESCE(voided, 0) = 0`);
+        else if (voided.value === 'only') c.push(`COALESCE(voided, 0) = 1`);
         if (search.value) {
           const q = sqlEscape(search.value.toLowerCase());
-          c.push(`(lower(fleetCode) LIKE '%${q}%' OR lower(fleetName) LIKE '%${q}%' OR lower(COALESCE(CAST(t5StoreNumber AS VARCHAR),'')) LIKE '%${q}%' OR lower(siteName) LIKE '%${q}%')`);
+          c.push(`(CAST(fleetAccountNumber AS VARCHAR) LIKE '%${q}%' OR lower(fleetName) LIKE '%${q}%' OR lower(COALESCE(CAST(storeNumber AS VARCHAR),'')) LIKE '%${q}%' OR lower(siteName) LIKE '%${q}%')`);
         }
         return c.length ? 'WHERE ' + c.join(' AND ') : '';
       };
 
-      return { period, fleetCode, storeNumber, region, district, search, periods, fleets, stores, regions, districts, hasData, buildWhere };
+      return { startDate, endDate, fleetAccountNumber, storeNumber, region, district, search, voided, fleets, stores, regions, districts, hasData, buildWhere };
     };
 
     // ─────────────────────────────────────────────────────────────
@@ -714,30 +794,40 @@
           <h2>Filters</h2>
           <div class="grid-3" style="margin-bottom: 14px">
             <div>
-              <label>Period</label>
-              <select v-model="facets.period.value" style="width:100%">
-                <option value="all">All periods</option>
-                <option v-for="p in facets.periods.value" :key="p.iso" :value="p.iso">{{ p.label }}</option>
-              </select>
+              <label>Invoice date range</label>
+              <div style="display:flex; gap:6px">
+                <input type="date" v-model="facets.startDate.value" style="flex:1; min-width:0" />
+                <input type="date" v-model="facets.endDate.value" style="flex:1; min-width:0" />
+              </div>
             </div>
             <div>
               <label>Fleet ({{ facets.fleets.value.length }})</label>
-              <select v-model="facets.fleetCode.value" style="width:100%">
+              <select v-model="facets.fleetAccountNumber.value" style="width:100%">
                 <option value="all">All fleets</option>
-                <option v-for="f in facets.fleets.value" :key="f.fleetCode" :value="f.fleetCode">{{ f.fleetCode }} — {{ f.fleetName }}</option>
+                <option v-for="f in facets.fleets.value" :key="f.fleetAccountNumber" :value="f.fleetAccountNumber">{{ f.fleetAccountNumber }} — {{ f.fleetName }}</option>
               </select>
             </div>
             <div>
-              <label>T5 store ({{ facets.stores.value.length }})</label>
+              <label>Store ({{ facets.stores.value.length }})</label>
               <select v-model="facets.storeNumber.value" style="width:100%">
                 <option value="all">All stores</option>
-                <option v-for="s in facets.stores.value" :key="s.t5StoreNumber" :value="s.t5StoreNumber">{{ s.t5StoreNumber }}{{ s.siteName ? ' — ' + s.siteName : '' }}</option>
+                <option v-for="s in facets.stores.value" :key="s.storeNumber" :value="s.storeNumber">{{ s.storeNumber }}{{ s.siteName ? ' — ' + s.siteName : '' }}</option>
               </select>
             </div>
           </div>
-          <div>
-            <label>Search</label>
-            <input type="text" v-model="facets.search.value" placeholder="text across fleet/store…" style="width:100%" />
+          <div class="grid-3" style="margin-bottom: 14px">
+            <div>
+              <label>Voided</label>
+              <select v-model="facets.voided.value" style="width:100%">
+                <option value="exclude">Exclude voided (default)</option>
+                <option value="include">Include voided</option>
+                <option value="only">Voided only</option>
+              </select>
+            </div>
+            <div style="grid-column: span 2">
+              <label>Search</label>
+              <input type="text" v-model="facets.search.value" placeholder="text across fleet/store…" style="width:100%" />
+            </div>
           </div>
         </div>
       `
@@ -783,11 +873,10 @@
             totals.value = agg[0];
             rows.value = await runQuery(props.db, `
               SELECT invoiceID, invoiceNumber, invoiceDate, period,
-                     fleetCode, fleetName, t5StoreNumber, siteName,
+                     fleetCode, fleetName, storeNumber, siteName,
                      invoiceTotalAmount, prepaidTotalAmount, mfcBalance,
                      invoiceTaxTotalAmount, invoiceTotalDiscounts, invoiceCCFees,
-                     totalMfcFee, totalAiFee,
-                     invoiceFactored, pending
+                     totalMfcFee, totalAiFee, voided, isAiInvoice
               FROM v_invoice_enriched
               ${where}
               ORDER BY invoiceDate DESC
@@ -806,11 +895,10 @@
           try {
             const all = await runQuery(props.db, `
               SELECT invoiceID, invoiceNumber, invoiceDate, period,
-                     fleetCode, fleetName, t5StoreNumber, siteName,
+                     fleetCode, fleetName, storeNumber, siteName,
                      invoiceTotalAmount, prepaidTotalAmount, mfcBalance,
                      invoiceTaxTotalAmount, invoiceTotalDiscounts, invoiceCCFees,
-                     totalMfcFee, totalAiFee,
-                     invoiceFactored, pending
+                     totalMfcFee, totalAiFee, voided, isAiInvoice
               FROM v_invoice_enriched
               ${where}
               ORDER BY invoiceDate DESC
@@ -818,6 +906,28 @@
             downloadCsv('invoices.csv', toCsv(all));
           } catch (e) { error.value = e.message; }
           finally { exporting.value = false; }
+        };
+
+        const exportingLines = ref(false);
+        const downloadLines = async () => {
+          if (!facets.hasData.value) return;
+          exportingLines.value = true;
+          error.value = null;
+          const where = facets.buildWhere();
+          try {
+            const all = await runQuery(props.db, `
+              SELECT invoiceID, invoiceNumber, invoiceDate, period,
+                     fleetCode, fleetName, storeNumber, siteName,
+                     serviceCatgCode, itemDescription,
+                     serviceActualQuantity, serviceAmount, serviceActualAmount,
+                     voided, isAiInvoice
+              FROM v_line_enriched
+              ${where}
+              ORDER BY invoiceDate DESC, invoiceID, invoiceItemBridgeID
+            `);
+            downloadCsv('invoice-item-detail.csv', toCsv(all));
+          } catch (e) { error.value = e.message; }
+          finally { exportingLines.value = false; }
         };
 
         const toggle = async (id) => {
@@ -840,9 +950,9 @@
         };
 
         watch(() => facets.hasData.value, (v) => { if (v) load(); }, { immediate: true });
-        watch([() => facets.period.value, () => facets.fleetCode.value, () => facets.storeNumber.value, () => facets.region.value, () => facets.district.value, () => facets.search.value, limit], load);
+        watch([() => facets.startDate.value, () => facets.endDate.value, () => facets.fleetAccountNumber.value, () => facets.storeNumber.value, () => facets.region.value, () => facets.district.value, () => facets.voided.value, () => facets.search.value, limit], load);
 
-        return { facets, rows, totals, total, loading, error, limit, expandedId, detailRows, detailLoading, toggle, exporting, downloadAll, money, num, ymd, monthLabel, Math };
+        return { facets, rows, totals, total, loading, error, limit, expandedId, detailRows, detailLoading, toggle, exporting, downloadAll, exportingLines, downloadLines, money, num, ymd, monthLabel, Math };
       },
       template: `
         <div>
@@ -859,6 +969,9 @@
                 <button class="ghost" @click="downloadAll" :disabled="exporting || total === 0">
                   {{ exporting ? 'Preparing…' : 'Download CSV (' + num(total) + ' rows)' }}
                 </button>
+                <button class="ghost" @click="downloadLines" :disabled="exportingLines || total === 0" style="margin-left: 8px">
+                  {{ exportingLines ? 'Preparing…' : 'Download invoice item detail' }}
+                </button>
               </div>
               <div class="q">Matching <strong>{{ num(total) }}</strong>. Showing first {{ Math.min(rows.length, limit) }}. <a href="#" @click.prevent="limit = limit === 500 ? 5000 : 500">{{ limit === 500 ? 'show more' : 'show less' }}</a> · click a row for line items.</div>
               <div v-if="loading" class="muted mono">Running…</div>
@@ -869,14 +982,14 @@
                     <tr>
                       <th></th>
                       <th>Invoice #</th><th>Date</th><th>Period</th>
-                      <th>Fleet</th><th>T5 store</th>
+                      <th>Fleet #</th><th>Fleet name</th><th>Store</th>
                       <th class="num">Total</th><th class="num">Prepaid</th><th class="num">MFC bal</th>
                       <th class="num">Tax</th><th class="num">Discount</th><th class="num">CC</th>
                       <th class="num">MFC fee</th><th class="num">AI fee</th>
                     </tr>
                     <tr v-if="totals" class="totals">
                       <td></td>
-                      <td colspan="5" class="mono">TOTAL across full match ({{ num(total) }} invoices)</td>
+                      <td colspan="6" class="mono">TOTAL across full match ({{ num(total) }} invoices)</td>
                       <td class="num">{{ money(totals.invoiceTotalAmount) }}</td>
                       <td class="num">{{ money(totals.prepaidTotalAmount) }}</td>
                       <td class="num">{{ money(totals.mfcBalance) }}</td>
@@ -894,8 +1007,9 @@
                         <td class="mono">{{ r.invoiceNumber }}</td>
                         <td>{{ ymd(r.invoiceDate) }}</td>
                         <td>{{ monthLabel(r.period) }}</td>
-                        <td>{{ r.fleetCode }} · {{ r.fleetName }}</td>
-                        <td class="mono">{{ r.t5StoreNumber }}</td>
+                        <td class="mono">{{ r.fleetAccountNumber }}</td>
+                        <td>{{ r.fleetName }}</td>
+                        <td class="mono">{{ r.storeNumber }}</td>
                         <td class="num">{{ money(r.invoiceTotalAmount) }}</td>
                         <td class="num">{{ money(r.prepaidTotalAmount) }}</td>
                         <td class="num">{{ money(r.mfcBalance) }}</td>
@@ -906,7 +1020,7 @@
                         <td class="num">{{ money(r.totalAiFee) }}</td>
                       </tr>
                       <tr v-if="expandedId === r.invoiceID" class="detail-row">
-                        <td colspan="14" style="background: #f9fafb; padding: 16px 24px">
+                        <td colspan="15" style="background: #f9fafb; padding: 16px 24px">
                           <div style="margin-bottom: 12px">
                             <strong>Totals for invoice {{ r.invoiceNumber }}:</strong>
                             <span class="mono">  invoice {{ money(r.invoiceTotalAmount) }} · prepaid {{ money(r.prepaidTotalAmount) }} · tax {{ money(r.invoiceTaxTotalAmount) }} · discount {{ money(r.invoiceTotalDiscounts) }} · CC {{ money(r.invoiceCCFees) }} · MFC fee {{ money(r.totalMfcFee) }} · AI fee {{ money(r.totalAiFee) }}</span>
@@ -952,14 +1066,17 @@
 
         const buildLineWhere = () => {
           const c = [];
-          if (facets.period.value !== 'all')       c.push(`period = DATE '${sqlEscape(facets.period.value)}'`);
-          if (facets.fleetCode.value !== 'all')    c.push(`fleetCode = '${sqlEscape(facets.fleetCode.value)}'`);
-          if (facets.storeNumber.value !== 'all')  c.push(`t5StoreNumber = ${Number(facets.storeNumber.value)}`);
+          if (facets.startDate.value) c.push(`CAST(invoiceDate AS DATE) >= DATE '${sqlEscape(facets.startDate.value)}'`);
+          if (facets.endDate.value)   c.push(`CAST(invoiceDate AS DATE) <= DATE '${sqlEscape(facets.endDate.value)}'`);
+          if (facets.fleetAccountNumber.value !== 'all') c.push(`fleetAccountNumber = ${Number(facets.fleetAccountNumber.value)}`);
+          if (facets.storeNumber.value !== 'all')  c.push(`storeNumber = ${Number(facets.storeNumber.value)}`);
           if (facets.region.value !== 'all')       c.push(`region = '${sqlEscape(facets.region.value)}'`);
           if (facets.district.value !== 'all')     c.push(`district = '${sqlEscape(facets.district.value)}'`);
+          if (facets.voided.value === 'exclude')   c.push(`COALESCE(voided, 0) = 0`);
+          else if (facets.voided.value === 'only') c.push(`COALESCE(voided, 0) = 1`);
           if (facets.search.value) {
             const q = sqlEscape(facets.search.value.toLowerCase());
-            c.push(`(lower(itemDescription) LIKE '%${q}%' OR lower(serviceCatgCode) LIKE '%${q}%' OR lower(fleetCode) LIKE '%${q}%' OR lower(siteName) LIKE '%${q}%')`);
+            c.push(`(lower(itemDescription) LIKE '%${q}%' OR lower(serviceCatgCode) LIKE '%${q}%' OR CAST(fleetAccountNumber AS VARCHAR) LIKE '%${q}%' OR lower(siteName) LIKE '%${q}%')`);
           }
           return c.length ? 'WHERE ' + c.join(' AND ') : '';
         };
@@ -1016,7 +1133,7 @@
         };
 
         watch(() => facets.hasData.value, (v) => { if (v) load(); }, { immediate: true });
-        watch([() => facets.period.value, () => facets.fleetCode.value, () => facets.storeNumber.value, () => facets.region.value, () => facets.district.value, () => facets.search.value], load);
+        watch([() => facets.startDate.value, () => facets.endDate.value, () => facets.fleetAccountNumber.value, () => facets.storeNumber.value, () => facets.region.value, () => facets.district.value, () => facets.voided.value, () => facets.search.value], load);
 
         // Time series for stacked-bar-over-time chart
         const periodRows = ref([]);
@@ -1038,7 +1155,7 @@
         };
 
         watch(() => facets.hasData.value, (v) => { if (v) loadPeriodMix(); }, { immediate: true });
-        watch([() => facets.period.value, () => facets.fleetCode.value, () => facets.storeNumber.value, () => facets.search.value], loadPeriodMix);
+        watch([() => facets.startDate.value, () => facets.endDate.value, () => facets.fleetAccountNumber.value, () => facets.storeNumber.value, () => facets.voided.value, () => facets.search.value], loadPeriodMix);
 
         const trendSpec = computed(() => {
           if (!periodRows.value.length) return null;
@@ -1047,7 +1164,7 @@
             height: 380,
             marginLeft: 70,
             marginRight: 24,
-            x: { label: null, tickFormat: d => new Date(d).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) },
+            x: { label: null, tickFormat: d => new Date(d).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }) },
             y: { grid: true, label: 'Revenue ($)' },
             color: { legend: true, label: 'Service type' },
             marks: [
@@ -1059,7 +1176,7 @@
               Plot.dot(data, {
                 x: 'period', y: 'revenue', fill: 'serviceType', r: 3,
                 tip: true,
-                title: d => `${new Date(d.period).toLocaleDateString('en-US',{month:'long',year:'numeric'})}\n${d.serviceType}\n${money(d.revenue)}`,
+                title: d => `${new Date(d.period).toLocaleDateString('en-US',{month:'long',year:'numeric',timeZone:'UTC'})}\n${d.serviceType}\n${money(d.revenue)}`,
               }),
             ],
           };
@@ -1198,7 +1315,7 @@
       invoices: {
         label: 'Invoices (enriched with fleet / store / fees)',
         table: 'v_invoice_enriched',
-        columnList: 'invoiceID, invoiceNumber, invoiceDate, period, fleetCode, fleetName, t5StoreNumber, siteName, invoiceTotalAmount, prepaidTotalAmount, mfcBalance, invoiceTaxTotalAmount, invoiceTotalDiscounts, invoiceCCFees, totalMfcFee, totalAiFee, invoiceFactored, pending',
+        columnList: 'invoiceID, invoiceNumber, invoiceDate, period, fleetCode, fleetName, storeNumber, siteName, invoiceTotalAmount, prepaidTotalAmount, mfcBalance, invoiceTaxTotalAmount, invoiceTotalDiscounts, invoiceCCFees, totalMfcFee, totalAiFee, voided, isAiInvoice',
         orderBy: 'invoiceDate DESC',
         filename: 'invoices.csv',
         useFacets: true,
@@ -1206,7 +1323,7 @@
       lines: {
         label: 'Invoice lines (enriched with fleet / store)',
         table: 'v_line_enriched',
-        columnList: 'invoiceID, period, fleetCode, fleetName, t5StoreNumber, siteName, serviceCatgCode, itemDescription, serviceActualQuantity, serviceAmount',
+        columnList: 'invoiceID, period, fleetCode, fleetName, storeNumber, siteName, serviceCatgCode, itemDescription, serviceActualQuantity, serviceAmount',
         orderBy: 'invoiceID, serviceCatgCode',
         filename: 'invoice_lines.csv',
         useFacets: true,
@@ -1231,8 +1348,24 @@
         label: 'Fleets (raw master table)',
         table: 'fleets',
         columnList: '*',
-        orderBy: 'fleetCompanyName',
+        orderBy: 'fleetAccountName',
         filename: 'fleets.csv',
+        useFacets: false,
+      },
+      drivenKpiWeekly: {
+        label: 'Driven Brands KPI — weekly (typed)',
+        table: 'v_driven_brands_kpi',
+        columnList: 'yearMonth, period, weekEnding, date, fleetAccountNumber, fleetAccountName, region, storeNumber, coscFz, grossSales, discountsDollars, carsPerDay, oilChanges, airFilters, cabinFilters, coolant, wipers, differentialFluidPct',
+        orderBy: 'weekEnding DESC, fleetAccountName, storeNumber',
+        filename: 'driven_brands_kpi_weekly.csv',
+        useFacets: false,
+      },
+      drivenKpiMonthly: {
+        label: 'Driven Brands KPI — monthly rollup (fleet × store × month)',
+        table: 'v_driven_brands_monthly',
+        columnList: 'period, fleetAccountNumber, fleetAccountName, storeNumber, drivenRegion, coscFz, grossSales, discountsDollars, carsPerDay, oilChanges, airFilters, cabinFilters, coolant, wipers, differentialFluidPct, weekCount, firstWeekEnding, lastWeekEnding',
+        orderBy: 'period DESC, fleetAccountName, storeNumber',
+        filename: 'driven_brands_kpi_monthly.csv',
         useFacets: false,
       },
       sites: {
@@ -1248,6 +1381,329 @@
         custom: true,
         filename: 'extract.csv',
       },
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Reconciliation tab — MFC vs Driven Brands KPI at
+    // (period, fleetAccountNumber, storeNumber) grain.
+    // ─────────────────────────────────────────────────────────────
+    const Reconciliation = {
+      props: ['db'],
+      components: { FilterBar },
+      setup(props) {
+        const dbRef = computed(() => props.db);
+        const facets = useFacets(dbRef);
+        const rows = ref([]);
+        const summary = ref(null);
+        const loading = ref(false);
+        const error = ref(null);
+        const statusFilter = ref('all'); // all | matched | variance | missing_mfc | missing_driven
+        const sortKey = ref('absVariance');
+
+        const kpiRowCount = ref(0);
+        const hasKpi = computed(() => kpiRowCount.value > 0);
+        const refreshKpiCount = async () => {
+          if (!props.db?.__tables?.has('driven_brands_kpi')) { kpiRowCount.value = 0; return; }
+          try {
+            const r = await runQuery(props.db, `SELECT COUNT(*) AS c FROM driven_brands_kpi`);
+            kpiRowCount.value = Number(r[0].c);
+          } catch { kpiRowCount.value = 0; }
+        };
+
+        // Rebuild the same date/fleet/store predicates used by the MFC side
+        // and translate them for the Driven side (invoiceDate → weekEnding).
+        // fleetAccountNumber matches directly on both sides.
+        const buildSides = () => {
+          const mfc = [];
+          const drv = [];
+          if (facets.startDate.value) {
+            mfc.push(`CAST(invoiceDate AS DATE) >= DATE '${sqlEscape(facets.startDate.value)}'`);
+            drv.push(`CAST(weekEnding AS DATE) >= DATE '${sqlEscape(facets.startDate.value)}'`);
+          }
+          if (facets.endDate.value) {
+            mfc.push(`CAST(invoiceDate AS DATE) <= DATE '${sqlEscape(facets.endDate.value)}'`);
+            drv.push(`CAST(weekEnding AS DATE) <= DATE '${sqlEscape(facets.endDate.value)}'`);
+          }
+          if (facets.fleetAccountNumber.value !== 'all') {
+            const n = Number(facets.fleetAccountNumber.value);
+            mfc.push(`fleetAccountNumber = ${n}`);
+            drv.push(`fleetAccountNumber = ${n}`);
+          }
+          if (facets.storeNumber.value !== 'all') {
+            mfc.push(`storeNumber = ${Number(facets.storeNumber.value)}`);
+            drv.push(`storeNumber = ${Number(facets.storeNumber.value)}`);
+          }
+          // Voided is a MFC-side concept only; Driven data has no such flag.
+          if (facets.voided.value === 'exclude')   mfc.push(`COALESCE(voided, 0) = 0`);
+          else if (facets.voided.value === 'only') mfc.push(`COALESCE(voided, 0) = 1`);
+          if (facets.region.value !== 'all')       mfc.push(`region = '${sqlEscape(facets.region.value)}'`);
+          if (facets.district.value !== 'all')     mfc.push(`district = '${sqlEscape(facets.district.value)}'`);
+          return {
+            mfcWhere: mfc.length ? 'WHERE ' + mfc.join(' AND ') : '',
+            drvWhere: drv.length ? 'WHERE ' + drv.join(' AND ') : '',
+          };
+        };
+
+        const baseQuery = () => {
+          const { mfcWhere, drvWhere } = buildSides();
+          // Driven's weekEnding is Saturday (US retail Sun–Sat week). Align the
+          // MFC side by shifting each invoiceDate forward to the Saturday that
+          // ends its week. date_part('dow', …) is 0=Sun … 6=Sat.
+          const mfcWeekEndingExpr =
+            `CAST(invoiceDate AS DATE) + (6 - date_part('dow', CAST(invoiceDate AS DATE)))::INTEGER`;
+          return `
+            WITH mfc AS (
+              SELECT ${mfcWeekEndingExpr}   AS weekEnding,
+                     fleetAccountNumber,
+                     MAX(fleetName)             AS fleetName,
+                     storeNumber,
+                     MAX(siteName)              AS siteName,
+                     COUNT(DISTINCT invoiceID)  AS invoiceCount,
+                     SUM(invoiceTotalAmount)    AS mfcTotalInvoice,
+                     SUM(mfcBalance)            AS mfcTotalBalance,
+                     SUM(invoiceTotalDiscounts) AS mfcTotalDiscount
+              FROM v_invoice_enriched
+              ${mfcWhere}
+              GROUP BY 1, fleetAccountNumber, storeNumber
+            ),
+            drv AS (
+              SELECT CAST(weekEnding AS DATE) AS weekEnding,
+                     TRY_CAST(fleetAccountNumber AS INTEGER) AS fleetAccountNumber,
+                     MAX(fleetAccountName)          AS fleetAccountName,
+                     TRY_CAST(storeNumber AS INTEGER) AS storeNumber,
+                     SUM(TRY_CAST(grossSales AS DOUBLE))       AS drivenGrossSales,
+                     SUM(TRY_CAST(discountsDollars AS DOUBLE)) AS drivenDiscounts,
+                     SUM(TRY_CAST(carsPerDay AS INTEGER))      AS drivenCarsPerDay,
+                     SUM(TRY_CAST(oilChanges AS INTEGER))      AS drivenOilChanges
+              FROM driven_brands_kpi
+              ${drvWhere}
+              GROUP BY 1, TRY_CAST(fleetAccountNumber AS INTEGER), TRY_CAST(storeNumber AS INTEGER)
+            )
+            SELECT
+              COALESCE(m.weekEnding, d.weekEnding)                   AS weekEnding,
+              COALESCE(m.fleetAccountNumber, d.fleetAccountNumber)   AS fleetAccountNumber,
+              COALESCE(m.fleetName, d.fleetAccountName, '<unknown>') AS fleetName,
+              COALESCE(m.storeNumber, d.storeNumber)                 AS storeNumber,
+              COALESCE(m.siteName, '<unknown>')                      AS siteName,
+              m.invoiceCount,
+              m.mfcTotalInvoice,
+              m.mfcTotalBalance,
+              m.mfcTotalDiscount,
+              d.drivenGrossSales,
+              d.drivenDiscounts,
+              d.drivenCarsPerDay,
+              d.drivenOilChanges,
+              COALESCE(m.mfcTotalBalance, 0) - COALESCE(d.drivenGrossSales, 0) AS variance,
+              CASE WHEN d.drivenGrossSales > 0
+                   THEN (COALESCE(m.mfcTotalBalance, 0) - d.drivenGrossSales) / d.drivenGrossSales
+                   ELSE NULL END AS variancePct,
+              CASE
+                WHEN m.mfcTotalBalance IS NULL THEN 'missing_mfc'
+                WHEN d.drivenGrossSales IS NULL THEN 'missing_driven'
+                WHEN abs(COALESCE(m.mfcTotalBalance,0) - COALESCE(d.drivenGrossSales,0)) < 1.00 THEN 'matched'
+                ELSE 'variance'
+              END AS reconStatus
+            FROM mfc m
+            FULL OUTER JOIN drv d
+              ON d.weekEnding = m.weekEnding
+             AND d.fleetAccountNumber = m.fleetAccountNumber
+             AND d.storeNumber = m.storeNumber
+          `;
+        };
+
+        const load = async () => {
+          if (!facets.hasData.value) return;
+          if (!hasKpi.value) {
+            summary.value = null;
+            rows.value = [];
+            return;
+          }
+          loading.value = true;
+          error.value = null;
+          try {
+            const base = baseQuery();
+            const statusClause = statusFilter.value === 'all'
+              ? ''
+              : `WHERE reconStatus = '${statusFilter.value}'`;
+            const orderBy =
+              sortKey.value === 'absVariance'   ? 'abs(COALESCE(variance,0)) DESC NULLS LAST' :
+              sortKey.value === 'variance'      ? 'variance DESC NULLS LAST' :
+              sortKey.value === 'mfcTotal'      ? 'mfcTotalBalance DESC NULLS LAST' :
+              sortKey.value === 'drivenGross'   ? 'drivenGrossSales DESC NULLS LAST' :
+              sortKey.value === 'weekEnding'    ? 'weekEnding DESC, abs(COALESCE(variance,0)) DESC NULLS LAST' :
+                                                  'abs(COALESCE(variance,0)) DESC NULLS LAST';
+
+            summary.value = (await runQuery(props.db, `
+              WITH r AS (${base})
+              SELECT
+                COUNT(*)                                  AS total,
+                SUM(CASE WHEN reconStatus = 'matched'        THEN 1 ELSE 0 END) AS matched,
+                SUM(CASE WHEN reconStatus = 'variance'       THEN 1 ELSE 0 END) AS variance,
+                SUM(CASE WHEN reconStatus = 'missing_mfc'    THEN 1 ELSE 0 END) AS missingMfc,
+                SUM(CASE WHEN reconStatus = 'missing_driven' THEN 1 ELSE 0 END) AS missingDriven,
+                SUM(COALESCE(invoiceCount, 0))            AS totalInvoiceCount,
+                SUM(COALESCE(mfcTotalBalance, 0))         AS mfcTotal,
+                SUM(COALESCE(drivenGrossSales, 0))        AS drivenTotal,
+                SUM(COALESCE(variance, 0))                AS netVariance,
+                SUM(COALESCE(drivenCarsPerDay, 0))        AS totalCarsPerDay
+              FROM r
+            `))[0];
+            rows.value = await runQuery(props.db, `
+              WITH r AS (${base})
+              SELECT * FROM r
+              ${statusClause}
+              ORDER BY ${orderBy}
+              LIMIT 1000
+            `);
+          } catch (e) { error.value = e.message; }
+          finally { loading.value = false; }
+        };
+
+        const exporting = ref(false);
+        const downloadAll = async () => {
+          if (!facets.hasData.value || !hasKpi.value) return;
+          exporting.value = true;
+          error.value = null;
+          try {
+            const base = baseQuery();
+            const all = await runQuery(props.db, `
+              WITH r AS (${base})
+              SELECT * FROM r
+              ORDER BY weekEnding DESC, fleetName, storeNumber
+            `);
+            downloadCsv('reconciliation.csv', toCsv(all));
+          } catch (e) { error.value = e.message; }
+          finally { exporting.value = false; }
+        };
+
+        watch(() => facets.hasData.value, async (v) => { if (v) { await refreshKpiCount(); load(); } }, { immediate: true });
+        watch([
+          () => facets.startDate.value, () => facets.endDate.value,
+          () => facets.fleetAccountNumber.value, () => facets.storeNumber.value,
+          () => facets.region.value, () => facets.district.value,
+          () => facets.voided.value, statusFilter, sortKey, hasKpi,
+        ], load);
+
+        const statusLabel = (s) =>
+          s === 'matched'        ? 'matched' :
+          s === 'variance'       ? 'variance' :
+          s === 'missing_mfc'    ? 'missing from MFC' :
+          s === 'missing_driven' ? 'missing from Driven' : s;
+
+        return {
+          facets, rows, summary, loading, error, statusFilter, sortKey,
+          hasKpi, exporting, downloadAll, statusLabel,
+          money, num, ymd, monthLabel, Math,
+        };
+      },
+      template: `
+        <div>
+          <div v-if="!db || !facets.hasData.value" class="card">
+            <div class="missing">Load the MFC extracts first.</div>
+          </div>
+          <template v-else>
+            <FilterBar :facets="facets" />
+
+            <div class="card" v-if="!hasKpi">
+              <div class="missing">Load <span class="mono">driven_brands_kpi.csv</span> to compare MFC totals against Driven Brands data. Run <span class="mono">scripts/driven_kpi_xlsx_to_csv.py</span> on the Fleet KPI Table Report xlsx, then drop the resulting CSV on the Load tab.</div>
+            </div>
+
+            <template v-else>
+              <div class="card">
+                <div class="flex" style="margin-bottom: 4px">
+                  <h2>MFC vs Driven Brands — fleet × store × month</h2>
+                  <div class="spacer"></div>
+                  <button class="ghost" @click="downloadAll" :disabled="exporting || !summary || summary.total === 0">
+                    {{ exporting ? 'Preparing…' : 'Download CSV' }}
+                  </button>
+                </div>
+                <div v-if="summary" class="q">
+                  Matching <strong>{{ num(summary.total) }}</strong>.
+                  <span class="pill ok">{{ num(summary.matched) }} matched</span>
+                  <span class="pill warn" style="margin-left: 6px">{{ num(summary.variance) }} variance</span>
+                  <span class="pill" style="margin-left: 6px; background: #fde68a; color: #78350f">{{ num(summary.missingMfc) }} missing from MFC</span>
+                  <span class="pill" style="margin-left: 6px; background: #fecaca; color: #7f1d1d">{{ num(summary.missingDriven) }} missing from Driven</span>
+                </div>
+                <div class="grid-3" style="margin-top: 10px">
+                  <div>
+                    <label>Status</label>
+                    <select v-model="statusFilter" style="width:100%">
+                      <option value="all">All</option>
+                      <option value="variance">Variance only</option>
+                      <option value="matched">Matched only</option>
+                      <option value="missing_mfc">Missing from MFC</option>
+                      <option value="missing_driven">Missing from Driven</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Sort by</label>
+                    <select v-model="sortKey" style="width:100%">
+                      <option value="absVariance">Largest absolute variance</option>
+                      <option value="variance">Signed variance (desc)</option>
+                      <option value="mfcTotal">MFC total (desc)</option>
+                      <option value="drivenGross">Driven gross (desc)</option>
+                      <option value="weekEnding">Week ending (newest first)</option>
+                    </select>
+                  </div>
+                </div>
+                <div v-if="loading" class="muted mono" style="margin-top: 12px">Running…</div>
+                <div v-else-if="error" class="err">{{ error }}</div>
+                <div v-else style="overflow-x:auto; margin-top: 12px">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Week ending</th>
+                        <th>Fleet #</th>
+                        <th>Fleet</th>
+                        <th>Store</th>
+                        <th>Status</th>
+                        <th class="num">MFC invoices</th>
+                        <th class="num">MFC balance</th>
+                        <th class="num">Driven gross</th>
+                        <th class="num">Variance $</th>
+                        <th class="num">Variance %</th>
+                        <th class="num">Cars/day</th>
+                      </tr>
+                      <tr v-if="summary" class="totals">
+                        <td colspan="5" class="mono">TOTAL across full match ({{ num(summary.total) }} rows)</td>
+                        <td class="num">{{ num(summary.totalInvoiceCount) }}</td>
+                        <td class="num">{{ money(summary.mfcTotal) }}</td>
+                        <td class="num">{{ money(summary.drivenTotal) }}</td>
+                        <td class="num">{{ money(summary.netVariance) }}</td>
+                        <td class="num">—</td>
+                        <td class="num">{{ num(summary.totalCarsPerDay) }}</td>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(r, i) in rows" :key="i">
+                        <td>{{ ymd(r.weekEnding) }}</td>
+                        <td class="mono">{{ r.fleetAccountNumber ?? '—' }}</td>
+                        <td>{{ r.fleetName }}</td>
+                        <td class="mono">{{ r.storeNumber ?? '—' }}</td>
+                        <td>
+                          <span v-if="r.reconStatus === 'matched'" class="pill ok">matched</span>
+                          <span v-else-if="r.reconStatus === 'variance'" class="pill warn">variance</span>
+                          <span v-else-if="r.reconStatus === 'missing_mfc'" class="pill" style="background: #fde68a; color: #78350f">missing from MFC</span>
+                          <span v-else class="pill" style="background: #fecaca; color: #7f1d1d">missing from Driven</span>
+                        </td>
+                        <td class="num">{{ r.invoiceCount == null ? '—' : num(r.invoiceCount) }}</td>
+                        <td class="num">{{ r.mfcTotalBalance == null ? '—' : money(r.mfcTotalBalance) }}</td>
+                        <td class="num">{{ r.drivenGrossSales == null ? '—' : money(r.drivenGrossSales) }}</td>
+                        <td class="num">{{ r.variance == null ? '—' : money(r.variance) }}</td>
+                        <td class="num">{{ r.variancePct == null ? '—' : (r.variancePct * 100).toFixed(1) + '%' }}</td>
+                        <td class="num">{{ r.drivenCarsPerDay == null ? '—' : num(r.drivenCarsPerDay) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-if="summary && summary.total > rows.length" class="muted mono" style="margin-top: 8px">
+                  Showing first {{ num(rows.length) }} of {{ num(summary.total) }}. Download CSV for the full set.
+                </div>
+              </div>
+            </template>
+          </template>
+        </div>
+      `
     };
 
     const Extracts = {
@@ -1311,7 +1767,7 @@
         };
 
         watch(() => facets.hasData.value, (v) => { if (v) runPreview(); }, { immediate: true });
-        watch([preset, customSql, () => facets.period.value, () => facets.fleetCode.value, () => facets.storeNumber.value, () => facets.search.value], runPreview);
+        watch([preset, customSql, () => facets.startDate.value, () => facets.endDate.value, () => facets.fleetAccountNumber.value, () => facets.storeNumber.value, () => facets.voided.value, () => facets.search.value], runPreview);
 
         return { facets, preset, customSql, previewRows, previewCols, totalCount, loading, downloading, error, currentPreset, PRESETS, buildSql, runPreview, download, money, num, ymd };
       },
@@ -1385,7 +1841,7 @@
     };
 
     const App = {
-      components: { FileLoader, AllInvoices, ProductAnalytics, Extracts },
+      components: { FileLoader, AllInvoices, ProductAnalytics, Reconciliation, Extracts },
       setup() {
         const db = shallowRef(null);
         const tab = ref('load');
@@ -1440,6 +1896,7 @@
           { key: 'load',     label: 'Load data' },
           { key: 'all',      label: 'All' },
           { key: 'products', label: 'Product analytics' },
+          { key: 'recon',    label: 'Reconciliation' },
           { key: 'extracts', label: 'Extracts' },
         ];
 
@@ -1464,6 +1921,7 @@
             <div v-show="tab === 'load'"><FileLoader :db="db" @loaded="refreshTables" /></div>
             <div v-show="tab === 'all'"><AllInvoices :db="db" :key="Array.from(tables).join(',')" /></div>
             <div v-show="tab === 'products'"><ProductAnalytics :db="db" :key="Array.from(tables).join(',')" /></div>
+            <div v-show="tab === 'recon'"><Reconciliation :db="db" :key="Array.from(tables).join(',')" /></div>
             <div v-show="tab === 'extracts'"><Extracts :db="db" :key="Array.from(tables).join(',')" /></div>
           </template>
         </main>

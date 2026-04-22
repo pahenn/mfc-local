@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS sites;
 DROP TABLE IF EXISTS fleets;
 DROP TABLE IF EXISTS invoices;
 DROP TABLE IF EXISTS invoice_item_bridge;
+DROP TABLE IF EXISTS driven_brands_kpi;
 
 CREATE TABLE corporation_types AS
 SELECT * FROM read_csv_auto('source-data/corporation_types.csv', sample_size=-1);
@@ -31,6 +32,11 @@ SELECT * FROM read_csv_auto('source-data/invoices.csv', sample_size=-1);
 CREATE TABLE invoice_item_bridge AS
 SELECT * FROM read_csv_auto('source-data/invoice_item_bridge.csv', sample_size=-1);
 
+-- Driven Brands weekly KPI export (optional). Produced by
+-- scripts/driven_kpi_xlsx_to_csv.py from the Fleet KPI Table Report xlsx.
+CREATE TABLE driven_brands_kpi AS
+SELECT * FROM read_csv_auto('source-data/driven_brands_kpi.csv', sample_size=-1);
+
 -- Sanity-check row counts
 SELECT 'corporation_types'   AS table_name, COUNT(*) AS rows FROM corporation_types
 UNION ALL SELECT 'customers',           COUNT(*) FROM customers
@@ -38,4 +44,5 @@ UNION ALL SELECT 'sites',               COUNT(*) FROM sites
 UNION ALL SELECT 'fleets',              COUNT(*) FROM fleets
 UNION ALL SELECT 'invoices',            COUNT(*) FROM invoices
 UNION ALL SELECT 'invoice_item_bridge', COUNT(*) FROM invoice_item_bridge
+UNION ALL SELECT 'driven_brands_kpi',   COUNT(*) FROM driven_brands_kpi
 ORDER BY table_name;

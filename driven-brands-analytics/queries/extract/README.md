@@ -17,7 +17,7 @@ These are the raw table pulls from the MFC legacy SQL Server. Each file is a sel
 
 - **Brand**: `corpType IN ('T5C', 'MBL')` — the two Driven Brands corp types we receive (Take 5 + MBL). Add any further codes to every file's `IN (…)` clause if the scope widens.
 - **Date window**: `invoiceDate >= DATEADD(month, -3, first_of_current_month)`. So if today is 2026-04-21, the window is **2026-01-01 through 2026-04-21** (current month + 3 prior months).
-- **Voided invoices excluded** (`voided = 0`).
+- **Voided invoices are included.** The `voided` column comes through in the extract so the dashboard can toggle them in or out; the extract SQL no longer filters them.
 
 ## How to run
 
