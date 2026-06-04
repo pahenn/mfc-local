@@ -18,6 +18,9 @@ wheels/
 # data
 **/*.csv
 **/*.xlsx
+**/*.duckdb
 
 # credentials
 **/.htpasswd
+
+db/

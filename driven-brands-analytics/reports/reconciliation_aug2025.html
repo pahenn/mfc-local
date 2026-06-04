@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoundBilling × Driven Brands — Reconciliation (Aug 2025)</title>
+<style>
+  :root { --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         color:var(--ink); background:#f8fafc; }
+  .wrap { max-width:820px; margin:0 auto; padding:28px 20px 64px; }
+  header.hero { border-bottom:3px solid var(--ink); padding-bottom:18px; margin-bottom:28px; }
+  h1 { font-size:27px; margin:0 0 6px; letter-spacing:-.4px; }
+  h2 { font-size:19px; margin:38px 0 6px; letter-spacing:-.2px; }
+  .sub { color:var(--mute); font-size:13px; }
+  p.lead { font-size:15.5px; }
+  .cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:22px 0 6px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:15px 16px; }
+  .card .k { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--mute); }
+  .card .v { font-size:23px; font-weight:700; margin-top:4px; letter-spacing:-.5px; }
+  .card .v.green { color:#16a34a; } .card .v.red { color:#dc2626; } .card .v.amber { color:#f59e0b; }
+  .card .note { font-size:11.5px; color:var(--mute); margin-top:3px; }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin-top:14px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; margin-top:8px; }
+  th,td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); }
+  th { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--mute); }
+  td.r,th.r { text-align:right; font-variant-numeric:tabular-nums; }
+  td.pos { color:#16a34a; } td.neg { color:#dc2626; }
+  .muted { color:var(--mute); }
+  .callout { border-left:4px solid #16a34a; background:#f0fdf4; padding:12px 16px; border-radius:0 8px 8px 0; margin:14px 0; }
+  .callout.warn { border-color:#f59e0b; background:#fffbeb; }
+  .pill { display:inline-block; font-size:11px; padding:2px 9px; border-radius:999px; background:#eef2ff; color:#3730a3; font-weight:600; }
+  .tag { display:inline-block; font-size:10px; padding:1px 6px; border-radius:4px; background:#fef3c7; color:#92400e; font-weight:600; vertical-align:middle; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  footer { margin-top:46px; color:var(--mute); font-size:12px; border-top:1px solid var(--line); padding-top:14px; }
+  @media (max-width:720px) { .cards { grid-template-columns:repeat(2,1fr); } }
+</style></head>
+<body><div class="wrap">
+
+<header class="hero">
+  <span class="pill">Reconciliation report</span>
+  <h1>SoundBilling invoices × Driven Brands Fleet KPI</h1>
+  <div class="sub">Window <b>2025-08-03 → 2025-08-30</b> (Aug 2025) · grain: week-ending × fleet × store · generated 2026-06-04 16:06 UTC</div>
+</header>
+
+<p class="lead">Reconciles MFC <b>SoundBilling</b> invoice revenue against Driven Brands' Fleet KPI
+export at the (week-ending&nbsp;× fleet&nbsp;× store) grain — limited to the stores Driven actually reports
+(rows Driven didn't send are out of scope). Headline finding: once the comparison uses the
+<b>right MFC number</b> — pre-tax gross invoice, not post-prepayment balance — the two systems
+reconcile to the dollar on matched rows. What's left is mostly <b>nationally-billed accounts MFC never
+invoices per store</b>, not billed-amount disagreements.</p>
+
+<div class="cards">
+  <div class="card"><div class="k">Matched rows</div><div class="v green">25,823</div>
+     <div class="note">within $1, both sides present</div></div>
+  <div class="card"><div class="k">Matched agreement</div><div class="v green">$4,486,453</div>
+     <div class="note">vs Driven $4,486,446 · Δ $7</div></div>
+  <div class="card"><div class="k">Real amount variance</div><div class="v amber">$4,365</div>
+     <div class="note">371 rows, both sides present</div></div>
+  <div class="card"><div class="k">Driven sales, no MFC invoice</div><div class="v red">$4,301,636</div>
+     <div class="note">mostly national central-billing</div></div>
+</div>
+
+<h2>1 · The number we compare</h2>
+<p>Driven's <b>Net Sales</b> = gross − discounts and <b>excludes tax</b>. The MFC figure that matches it is the
+<b>pre-tax gross invoice</b> (<code>invoiceTotalAmount − tax</code>) — not the post-prepayment balance
+(<code>invoiceTotalAmount − prepaid</code>), which reads $0 for prepaid fleets even though the store rang real
+sales. Below: share of fleet/store/weeks reconciling within 5% under each candidate basis.</p>
+<div class="panel"><svg viewBox='0 0 560 166' style='width:100%;max-width:560px;height:auto;display:block;margin:0 auto' role='img'><text x='80' y='42.0' text-anchor='end' font-size='12.5' fill='#0f172a'>local</text><rect x='90' y='8' width='9.4' height='16' rx='3' fill='#dc2626'/><text x='105.4' y='20.4' font-size='11' fill='#64748b'>2%</text><rect x='90' y='28' width='69.2' height='16' rx='3' fill='#f59e0b'/><text x='165.2' y='40.4' font-size='11' fill='#64748b'>18%</text><rect x='90' y='48' width='380.0' height='16' rx='3' fill='#16a34a'/><text x='476.0' y='60.4' font-size='11' fill='#64748b'>99%</text><text x='80' y='112.0' text-anchor='end' font-size='12.5' fill='#0f172a'>national</text><rect x='90' y='78' width='166.2' height='16' rx='3' fill='#dc2626'/><text x='262.2' y='90.4' font-size='11' fill='#64748b'>43%</text><rect x='90' y='98' width='70.8' height='16' rx='3' fill='#f59e0b'/><text x='166.8' y='110.4' font-size='11' fill='#64748b'>19%</text><rect x='90' y='118' width='376.8' height='16' rx='3' fill='#16a34a'/><text x='472.8' y='130.4' font-size='11' fill='#64748b'>99%</text><rect x='90' y='152' width='12' height='12' rx='2' fill='#dc2626'/><text x='107' y='162' font-size='11.5' fill='#64748b'>Balance vs Gross</text><rect x='231.2' y='152' width='12' height='12' rx='2' fill='#f59e0b'/><text x='248.2' y='162' font-size='11.5' fill='#64748b'>Balance vs Net</text><rect x='358.0' y='152' width='12' height='12' rx='2' fill='#16a34a'/><text x='375.0' y='162' font-size='11.5' fill='#64748b'>Gross-ex-tax vs Net (used)</text></svg></div>
+<div class="callout">Moving from the balance to the pre-tax gross invoice lifts the within-5% match rate to
+<b>~99%</b> of rows with both sides present, and collapses the &gt;5% dollar variance
+dramatically (next chart).</div>
+
+<h2>2 · &gt;5% variance dollars — before vs after</h2>
+<p>Same population (education fleets and one-sided rows removed), scored on the old basis
+(balance vs gross) versus the pre-tax-gross-vs-net basis we settled on.</p>
+<div class="panel"><svg viewBox='0 0 560 166' style='width:100%;max-width:560px;height:auto;display:block;margin:0 auto' role='img'><text x='80' y='32.0' text-anchor='end' font-size='12.5' fill='#0f172a'>local</text><rect x='90' y='8' width='380.0' height='16' rx='3' fill='#dc2626'/><text x='476.0' y='20.4' font-size='11' fill='#64748b'>$1,980,280</text><rect x='90' y='28' width='1.8' height='16' rx='3' fill='#16a34a'/><text x='97.8' y='40.4' font-size='11' fill='#64748b'>$9,443</text><text x='80' y='102.0' text-anchor='end' font-size='12.5' fill='#0f172a'>national</text><rect x='90' y='78' width='18.6' height='16' rx='3' fill='#dc2626'/><text x='114.6' y='90.4' font-size='11' fill='#64748b'>$96,913</text><rect x='90' y='98' width='1.2' height='16' rx='3' fill='#16a34a'/><text x='97.2' y='110.4' font-size='11' fill='#64748b'>$6,103</text><rect x='90' y='152' width='12' height='12' rx='2' fill='#dc2626'/><text x='107' y='162' font-size='11.5' fill='#64748b'>Before (balance vs gross)</text><rect x='296.0' y='152' width='12' height='12' rx='2' fill='#16a34a'/><text x='313.0' y='162' font-size='11.5' fill='#64748b'>After (gross-ex-tax vs net)</text></svg></div>
+
+<h2>3 · Variance-% bins</h2>
+<p class="sub">Pre-tax gross invoice vs Driven net, per fleet × store × week, by segment. A $5 floor folds tiny-ticket rounding into the good bin.</p>
+<div class="panel"><svg viewBox='0 0 560 148' style='width:100%;max-width:560px;height:auto;display:block;margin:0 auto' role='img'><text x='80' y='39.760000000000005' text-anchor='end' font-size='12.5' fill='#0f172a'>local</text><rect x='90.0' y='18' width='450.5' height='34' fill='#16a34a'/><text x='315.2' y='39.760000000000005' text-anchor='middle' font-size='11.5' fill='#fff' font-weight='600'>22,361</text><rect x='540.5' y='18' width='0.7' height='34' fill='#f59e0b'/><rect x='541.2' y='18' width='2.8' height='34' fill='#dc2626'/><text x='80' y='91.76' text-anchor='end' font-size='12.5' fill='#0f172a'>national</text><rect x='90.0' y='70' width='447.4' height='34' fill='#16a34a'/><text x='313.7' y='91.76' text-anchor='middle' font-size='11.5' fill='#fff' font-weight='600'>3,387</text><rect x='537.4' y='70' width='0.3' height='34' fill='#f59e0b'/><rect x='537.7' y='70' width='6.3' height='34' fill='#dc2626'/><rect x='90' y='118' width='12' height='12' rx='2' fill='#16a34a'/><text x='107' y='128' font-size='11.5' fill='#64748b'>≤2% / &lt;$5</text><rect x='176.8' y='118' width='12' height='12' rx='2' fill='#f59e0b'/><text x='193.8' y='128' font-size='11.5' fill='#64748b'>&gt;2–5%</text><rect x='234.8' y='118' width='12' height='12' rx='2' fill='#dc2626'/><text x='251.8' y='128' font-size='11.5' fill='#64748b'>&gt;5%</text></svg>
+  <table><thead><tr><th>Segment</th><th>Bin</th><th class="r">Rows</th><th class="r">Abs variance</th></tr></thead>
+  <tbody><tr><td>local</td><td>1) &lt;=2% or &lt;$5</td><td class='r'>22,361</td><td class='r'>$310</td></tr><tr><td>local</td><td>2) &gt;2% to &lt;=5%</td><td class='r'>37</td><td class='r'>$203</td></tr><tr><td>local</td><td>3) &gt;5%</td><td class='r'>137</td><td class='r'>$9,414</td></tr><tr><td>national</td><td>1) &lt;=2% or &lt;$5</td><td class='r'>3,387</td><td class='r'>$45</td></tr><tr><td>national</td><td>2) &gt;2% to &lt;=5%</td><td class='r'>2</td><td class='r'>$12</td></tr><tr><td>national</td><td>3) &gt;5%</td><td class='r'>48</td><td class='r'>$6,091</td></tr></tbody></table>
+</div>
+
+<h2>4 · Matched rows reconcile to the dollar</h2>
+<div class="panel"><svg viewBox='0 0 560 166' style='width:100%;max-width:560px;height:auto;display:block;margin:0 auto' role='img'><text x='80' y='32.0' text-anchor='end' font-size='12.5' fill='#0f172a'>local</text><rect x='90' y='8' width='380.0' height='16' rx='3' fill='#0ea5e9'/><text x='476.0' y='20.4' font-size='11' fill='#64748b'>$3,565,607</text><rect x='90' y='28' width='380.0' height='16' rx='3' fill='#f97316'/><text x='476.0' y='40.4' font-size='11' fill='#64748b'>$3,565,600</text><text x='80' y='102.0' text-anchor='end' font-size='12.5' fill='#0f172a'>national</text><rect x='90' y='78' width='98.1' height='16' rx='3' fill='#0ea5e9'/><text x='194.1' y='90.4' font-size='11' fill='#64748b'>$920,846</text><rect x='90' y='98' width='98.1' height='16' rx='3' fill='#f97316'/><text x='194.1' y='110.4' font-size='11' fill='#64748b'>$920,846</text><rect x='90' y='152' width='12' height='12' rx='2' fill='#0ea5e9'/><text x='107' y='162' font-size='11.5' fill='#64748b'>MFC gross-ex-tax</text><rect x='231.2' y='152' width='12' height='12' rx='2' fill='#f97316'/><text x='248.2' y='162' font-size='11.5' fill='#64748b'>Driven net</text></svg>
+  <table><thead><tr><th>Segment</th><th class="r">Rows</th><th class="r">MFC gross-ex-tax</th><th class="r">Driven net</th><th class="r">Net Δ</th></tr></thead>
+  <tbody><tr><td>local</td><td class='r'>22,445</td><td class='r'>$3,565,607</td><td class='r'>$3,565,600</td><td class='r pos'>$7</td></tr><tr><td>national</td><td class='r'>3,378</td><td class='r'>$920,846</td><td class='r'>$920,846</td><td class='r neg'>$-0</td></tr></tbody></table>
+</div>
+
+<h2>5 · Driven sales MFC never invoiced</h2>
+<p>These are stores Driven reported but where SoundBilling has <b>no invoice</b> for that (fleet, store, week) —
+<b>$4,301,636</b> of Driven net sales. It's not a billing-amount problem: it's overwhelmingly
+<b>national fleet-management, leasing and rental accounts</b> (Enterprise, Element, LeasePlan, Hertz, ARI/Holman,
+Emkay, Merchants…) that are billed centrally and never flow through per-store SoundBilling invoices. A small
+slice ($76,339) is education / prepaid programs. The local <i>standard</i> rows are the only ones
+worth chasing as possible intake or store-key gaps.</p>
+<div class="panel"><svg viewBox='0 0 560 118' style='width:100%;max-width:560px;height:auto;display:block;margin:0 auto' role='img'><text x='190' y='27.68' text-anchor='end' font-size='12' fill='#0f172a'>national · standard</text><rect x='200' y='10' width='290.0' height='26' rx='4' fill='#7c3aed'/><text x='496.0' y='27.68' font-size='12' fill='#64748b'>$3,603,330</text><text x='190' y='63.68' text-anchor='end' font-size='12' fill='#0f172a'>local · standard</text><rect x='200' y='46' width='50.1' height='26' rx='4' fill='#2563eb'/><text x='256.1' y='63.68' font-size='12' fill='#64748b'>$621,966</text><text x='190' y='99.68' text-anchor='end' font-size='12' fill='#0f172a'>local · education / prepaid</text><rect x='200' y='82' width='6.1' height='26' rx='4' fill='#f59e0b'/><text x='212.1' y='99.68' font-size='12' fill='#64748b'>$76,339</text></svg>
+  <p class="sub" style="margin:10px 0 2px"><b>Largest accounts Driven reports but MFC doesn't invoice per store</b></p>
+  <table><thead><tr><th class="r">Fleet #</th><th>Fleet</th><th>Segment</th><th class="r">Store-weeks</th><th class="r">Driven net</th></tr></thead>
+  <tbody><tr><td class='r'>112460</td><td>Enterprise National Fleet</td><td>national</td><td class='r'>3,351</td><td class='r'>$1,524,064</td></tr><tr><td class='r'>57780</td><td>Element Fleet Management / NATIONAL</td><td>national</td><td class='r'>2,250</td><td class='r'>$698,141</td></tr><tr><td class='r'>112383</td><td>Lease Plan 112383 - This Is Ain-9 In Auto Data / NOW BEING USED FOR MAPS MAP WHEELS</td><td>national</td><td class='r'>1,817</td><td class='r'>$501,915</td></tr><tr><td class='r'>136242</td><td>Americas CarMart - NATIONAL (CUSTOMER/AFTER SALE)</td><td>national</td><td class='r'>489</td><td class='r'>$176,323</td></tr><tr><td class='r'>112122</td><td>Merchants Fleet / NATIONAL</td><td>national</td><td class='r'>754</td><td class='r'>$162,036</td></tr><tr><td class='r'>140879</td><td>Enterprise Rent A Car / National RAC</td><td>national</td><td class='r'>396</td><td class='r'>$137,124</td></tr><tr><td class='r'>114245</td><td>Hertz Rent A  Car RAC NATIONAL</td><td>national</td><td class='r'>816</td><td class='r'>$129,021</td></tr><tr><td class='r'>111818</td><td>ARI FLEET HOLMAN / NATIONAL</td><td>national</td><td class='r'>545</td><td class='r'>$118,295</td></tr><tr><td class='r'>112144</td><td>Emkay / AIN-3 / National</td><td>national</td><td class='r'>386</td><td class='r'>$74,889</td></tr><tr><td class='r'>147856</td><td>CarCare Promotions 147856</td><td>local</td><td class='r'>458</td><td class='r'>$56,981</td></tr><tr><td class='r'>175074</td><td>Mississippi State Faculty Student <span class='tag'>edu</span></td><td>local</td><td class='r'>10</td><td class='r'>$29,075</td></tr><tr><td class='r'>112129</td><td>Mike Albert Leasing Inc/NATIONAL</td><td>national</td><td class='r'>114</td><td class='r'>$21,007</td></tr></tbody></table>
+</div>
+
+<h2>6 · Largest remaining amount variances</h2>
+<p class="sub">Both sides present, ranked by absolute variance — where to look first.</p>
+<div class="panel"><svg viewBox='0 0 620 370' style='width:100%;max-width:620px;height:auto;display:block;margin:0 auto' role='img'><text x='240' y='27.68' text-anchor='end' font-size='12' fill='#0f172a'>Fleetio (cbCharge) (national)</text><rect x='250' y='10' width='300.0' height='26' rx='4' fill='#7c3aed'/><text x='556.0' y='27.68' font-size='12' fill='#64748b'>$4,587</text><text x='240' y='63.68' text-anchor='end' font-size='12' fill='#0f172a'>Holman /IV  032814 (national)</text><rect x='250' y='46' width='73.3' height='26' rx='4' fill='#7c3aed'/><text x='329.3' y='63.68' font-size='12' fill='#64748b'>$1,121</text><text x='240' y='99.68' text-anchor='end' font-size='12' fill='#0f172a'>OK Veterans Exemptions (local)</text><rect x='250' y='82' width='37.5' height='26' rx='4' fill='#2563eb'/><text x='293.5' y='99.68' font-size='12' fill='#64748b'>$574</text><text x='240' y='135.68' text-anchor='end' font-size='12' fill='#0f172a'>Take 5 Friends and Fam (local)</text><rect x='250' y='118' width='31.9' height='26' rx='4' fill='#2563eb'/><text x='287.9' y='135.68' font-size='12' fill='#64748b'>$488</text><text x='240' y='171.68' text-anchor='end' font-size='12' fill='#0f172a'>Take 5 Misbilled Fleet (local)</text><rect x='250' y='154' width='30.4' height='26' rx='4' fill='#2563eb'/><text x='286.4' y='171.68' font-size='12' fill='#64748b'>$465</text><text x='240' y='207.68' text-anchor='end' font-size='12' fill='#0f172a'>Pike Electric (local)</text><rect x='250' y='190' width='26.5' height='26' rx='4' fill='#2563eb'/><text x='282.5' y='207.68' font-size='12' fill='#64748b'>$405</text><text x='240' y='243.68' text-anchor='end' font-size='12' fill='#0f172a'>JTH Industrial Inc (local)</text><rect x='250' y='226' width='26.2' height='26' rx='4' fill='#2563eb'/><text x='282.2' y='243.68' font-size='12' fill='#64748b'>$400</text><text x='240' y='279.68' text-anchor='end' font-size='12' fill='#0f172a'>Ready Machinery (local)</text><rect x='250' y='262' width='21.0' height='26' rx='4' fill='#2563eb'/><text x='277.0' y='279.68' font-size='12' fill='#64748b'>$321</text><text x='240' y='315.68' text-anchor='end' font-size='12' fill='#0f172a'>Place Services Inc /NO (local)</text><rect x='250' y='298' width='18.6' height='26' rx='4' fill='#2563eb'/><text x='274.6' y='315.68' font-size='12' fill='#64748b'>$284</text><text x='240' y='351.68' text-anchor='end' font-size='12' fill='#0f172a'>City of Overland Park  (local)</text><rect x='250' y='334' width='17.2' height='26' rx='4' fill='#2563eb'/><text x='273.2' y='351.68' font-size='12' fill='#64748b'>$263</text></svg>
+  <table><thead><tr><th class="r">Fleet #</th><th>Fleet</th><th>Segment</th><th class="r">Rows</th><th class="r">Abs variance</th></tr></thead>
+  <tbody><tr><td class='r'>134641</td><td>Fleetio (cbCharge)</td><td>national</td><td class='r'>30</td><td class='r'>$4,587</td></tr><tr><td class='r'>111818</td><td>Holman /IV  032814</td><td>national</td><td class='r'>16</td><td class='r'>$1,121</td></tr><tr><td class='r'>178339</td><td>OK Veterans Exemptions</td><td>local</td><td class='r'>6</td><td class='r'>$574</td></tr><tr><td class='r'>156347</td><td>Take 5 Friends and Family</td><td>local</td><td class='r'>14</td><td class='r'>$488</td></tr><tr><td class='r'>120533</td><td>Take 5 Misbilled Fleets</td><td>local</td><td class='r'>5</td><td class='r'>$465</td></tr><tr><td class='r'>113292</td><td>Pike Electric</td><td>local</td><td class='r'>3</td><td class='r'>$405</td></tr><tr><td class='r'>197940</td><td>JTH Industrial Inc</td><td>local</td><td class='r'>1</td><td class='r'>$400</td></tr><tr><td class='r'>179084</td><td>Ready Machinery</td><td>local</td><td class='r'>1</td><td class='r'>$321</td></tr><tr><td class='r'>193872</td><td>Place Services Inc /NOW NATIONAL</td><td>local</td><td class='r'>1</td><td class='r'>$284</td></tr><tr><td class='r'>193902</td><td>City of Overland Park Police</td><td>local</td><td class='r'>3</td><td class='r'>$263</td></tr></tbody></table>
+</div>
+
+<h2>Status detail (in-scope stores)</h2>
+<div class="panel"><table>
+  <thead><tr><th>Segment</th><th>Status</th><th class="r">Rows</th><th class="r">MFC gross-ex-tax</th><th class="r">Driven net</th><th class="r">Net variance</th></tr></thead>
+  <tbody><tr><td>local</td><td>matched</td><td class='r'>22,445</td><td class='r'>$3,565,607</td><td class='r'>$3,565,600</td><td class='r pos'>$7</td></tr><tr><td>local</td><td>missing_mfc</td><td class='r'>6,665</td><td class='r'>$0</td><td class='r'>$698,305</td><td class='r neg'>$-698,305</td></tr><tr><td>local</td><td>variance</td><td class='r'>309</td><td class='r'>$73,128</td><td class='r'>$76,398</td><td class='r neg'>$-3,270</td></tr><tr><td>national</td><td>matched</td><td class='r'>3,378</td><td class='r'>$920,846</td><td class='r'>$920,846</td><td class='r neg'>$-0</td></tr><tr><td>national</td><td>missing_mfc</td><td class='r'>11,439</td><td class='r'>$0</td><td class='r'>$3,603,330</td><td class='r neg'>$-3,603,330</td></tr><tr><td>national</td><td>variance</td><td class='r'>62</td><td class='r'>$21,752</td><td class='r'>$20,656</td><td class='r pos'>$1,096</td></tr></tbody></table></div>
+
+</div></body></html>

@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS fleets;
 DROP TABLE IF EXISTS invoices;
 DROP TABLE IF EXISTS invoice_item_bridge;
 DROP TABLE IF EXISTS driven_brands_kpi;
+DROP TABLE IF EXISTS driven_brands_kpi_daily;
 
 CREATE TABLE corporation_types AS
 SELECT * FROM read_csv_auto('source-data/corporation_types.csv', sample_size=-1);
@@ -37,6 +38,12 @@ SELECT * FROM read_csv_auto('source-data/invoice_item_bridge.csv', sample_size=-
 CREATE TABLE driven_brands_kpi AS
 SELECT * FROM read_csv_auto('source-data/driven_brands_kpi.csv', sample_size=-1);
 
+-- Driven Brands *new-shape* daily KPI export (optional). Two-sheet (Local +
+-- National), daily grain, with Net Sales + Tickets. Produced by
+-- scripts/driven_kpi_daily_xlsx_to_csv.py from the Fleet KPI Table Report xlsx.
+CREATE TABLE driven_brands_kpi_daily AS
+SELECT * FROM read_csv_auto('source-data/driven_brands_kpi_daily.csv', sample_size=-1);
+
 -- Sanity-check row counts
 SELECT 'corporation_types'   AS table_name, COUNT(*) AS rows FROM corporation_types
 UNION ALL SELECT 'customers',           COUNT(*) FROM customers
@@ -45,4 +52,5 @@ UNION ALL SELECT 'fleets',              COUNT(*) FROM fleets
 UNION ALL SELECT 'invoices',            COUNT(*) FROM invoices
 UNION ALL SELECT 'invoice_item_bridge', COUNT(*) FROM invoice_item_bridge
 UNION ALL SELECT 'driven_brands_kpi',   COUNT(*) FROM driven_brands_kpi
+UNION ALL SELECT 'driven_brands_kpi_daily', COUNT(*) FROM driven_brands_kpi_daily
 ORDER BY table_name;
